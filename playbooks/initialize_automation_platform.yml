@@ -228,15 +228,13 @@
         method: POST
         headers: "{{ __initialize_headers }}"
         body_format: json
-        body:
-          name: "{{ __initialize_project.name }}"
-          description: "{{ __initialize_project.description }}"
-          organization: "{{ __initialize_organization_id | int }}"
-          scm_type: git
-          scm_url: "{{ __initialize_site_values.site_project_scm_url }}"
-          scm_branch: "{{ __initialize_site_values.site_project_scm_branch }}"
-          scm_update_on_launch: true
-          default_environment: "{{ __initialize_execution_environment_id | int }}"
+        # bodies with IDs are single dict expressions so the IDs stay integers on ansible-core < 2.19
+        body: >-
+          {{ {'name': __initialize_project.name, 'description': __initialize_project.description,
+              'organization': __initialize_organization_id | int, 'scm_type': 'git',
+              'scm_url': __initialize_site_values.site_project_scm_url,
+              'scm_branch': __initialize_site_values.site_project_scm_branch, 'scm_update_on_launch': true,
+              'default_environment': __initialize_execution_environment_id | int} }}
         validate_certs: "{{ initialize_automation_platform_validate_certs | bool }}"
         status_code: 201
       register: __initialize_project_create
@@ -267,10 +265,9 @@
         method: POST
         headers: "{{ __initialize_headers }}"
         body_format: json
-        body:
-          name: "{{ __initialize_inventory_name }}"
-          description: Control-node-only inventory for configuration-as-code jobs
-          organization: "{{ __initialize_organization_id | int }}"
+        body: >-
+          {{ {'name': __initialize_inventory_name, 'description': 'Control-node-only inventory for configuration-as-code jobs',
+              'organization': __initialize_organization_id | int} }}
         validate_certs: "{{ initialize_automation_platform_validate_certs | bool }}"
         status_code: 201
       register: __initialize_inventory_create
@@ -307,16 +304,14 @@
         method: POST
         headers: "{{ __initialize_headers }}"
         body_format: json
-        body:
-          name: "{{ initialize_automation_platform_job_template }}"
-          description: Apply configs/automation_platform from this repo with infra.aap_configuration.dispatch
-          project: "{{ __initialize_project_id | int }}"
-          playbook: playbooks/configure_automation_platform.yml
-          inventory: >-
-            {{ (__initialize_inventory_create.json.id if __initialize_inventory_create is changed
-                else __initialize_object_lookups.results[1].json.results[0].id) | int }}
-          execution_environment: "{{ __initialize_execution_environment_id | int }}"
-          extra_vars: "{{ __initialize_site_values | to_nice_yaml }}"
+        body: >-
+          {{ {'name': initialize_automation_platform_job_template,
+              'description': 'Apply configs/automation_platform from this repo with infra.aap_configuration.dispatch',
+              'project': __initialize_project_id | int, 'playbook': 'playbooks/configure_automation_platform.yml',
+              'inventory': (__initialize_inventory_create.json.id if __initialize_inventory_create is changed
+                            else __initialize_object_lookups.results[1].json.results[0].id) | int,
+              'execution_environment': __initialize_execution_environment_id | int,
+              'extra_vars': __initialize_site_values | to_nice_yaml} }}
         validate_certs: "{{ initialize_automation_platform_validate_certs | bool }}"
         status_code: 201
       register: __initialize_job_template_create
@@ -358,8 +353,7 @@
         method: POST
         headers: "{{ __initialize_headers }}"
         body_format: json
-        body:
-          id: "{{ __initialize_platform_credential_lookup.json.results[0].id | int }}"
+        body: "{{ {'id': __initialize_platform_credential_lookup.json.results[0].id | int} }}"
         validate_certs: "{{ initialize_automation_platform_validate_certs | bool }}"
         status_code: 204
       when: >-

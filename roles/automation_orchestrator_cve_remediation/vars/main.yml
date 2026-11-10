@@ -7,6 +7,17 @@ __automation_orchestrator_cve_remediation_job_template_common:
   integration_id: "{{ __orchestrator_cve_platform.id }}"
   credential_id: "{{ __orchestrator_cve_platform_credential_id }}"
 
+# Message shown to approvers (AO resolves the ${...} expressions at run time).
+__automation_orchestrator_cve_remediation_approval_prompt: |
+  Approve installing the fix for ${trigger.cve_id} (Red Hat severity ${cve_lookup.body.threat_severity},
+  CVSS ${cve_lookup.body.cvss3.cvss3_base_score}) from Satellite.
+  Hosts: ${triage.output.remediable_hosts_limit}
+  Advisories: ${triage.output.advisories}
+  Packages: ${triage.output.packages_to_update}
+  Method: dnf update-minimal --cve (only the advisory packages); hosts reboot only if dnf needs-restarting says so.
+  Triage reasoning: ${triage.output.reasoning}
+  Rejecting, or no decision within the window, stops the workflow without changes.
+
 __automation_orchestrator_cve_remediation_definition:
   schema_version: "2.0.0"
   name: "{{ automation_orchestrator_cve_remediation_workflow_name }}"
@@ -127,19 +138,12 @@ __automation_orchestrator_cve_remediation_definition:
       name: Approve installing the fix
       type: approval
       position: {x: 1500, y: 150}
-      parameters:
-        approver_groups: "{{ __orchestrator_cve_approver_groups }}"
-        approver_users: "{{ __orchestrator_cve_approver_users }}"
-        decision_window: "{{ automation_orchestrator_cve_remediation_decision_window | int }}"
-        prompt: |
-          Approve installing the fix for ${trigger.cve_id} (Red Hat severity ${cve_lookup.body.threat_severity},
-          CVSS ${cve_lookup.body.cvss3.cvss3_base_score}) from Satellite.
-          Hosts: ${triage.output.remediable_hosts_limit}
-          Advisories: ${triage.output.advisories}
-          Packages: ${triage.output.packages_to_update}
-          Method: dnf update-minimal --cve (only the advisory packages); hosts reboot only if dnf needs-restarting says so.
-          Triage reasoning: ${triage.output.reasoning}
-          Rejecting, or no decision within the window, stops the workflow without changes.
+      # built as one dict expression so decision_window stays an integer on ansible-core < 2.19
+      parameters: >-
+        {{ {'approver_groups': __orchestrator_cve_approver_groups,
+            'approver_users': __orchestrator_cve_approver_users,
+            'decision_window': automation_orchestrator_cve_remediation_decision_window | int,
+            'prompt': __automation_orchestrator_cve_remediation_approval_prompt} }}
 
     - id: apply
       name: Apply the fix from Satellite and verify
