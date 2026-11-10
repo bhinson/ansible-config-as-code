@@ -1,0 +1,11 @@
+---
+galaxy_info:
+  author: ansible-config-as-code contributors
+  description: Add a CVE remediation workflow (Red Hat CVE data, LLM triage, approval, Satellite fix) to Red Hat Automation Orchestrator
+  license: GPL-3.0-or-later
+  min_ansible_version: "2.16"
+  platforms:
+    - name: GenericLinux
+      versions: [all]
+dependencies: []
+...

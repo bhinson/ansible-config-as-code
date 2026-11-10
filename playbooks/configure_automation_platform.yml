@@ -1,0 +1,18 @@
+---
+# Apply Ansible Automation Platform configuration as code (gateway, controller, Event-Driven Ansible, hub) with
+# infra.aap_configuration.dispatch. Configuration lives in configs/automation_platform/*.yml using the collection's
+# variable names (aap_organizations, controller_projects, ...).
+#   source scripts/env.sh && ansible-playbook playbooks/configure_automation_platform.yml [--check] [--tags <role tag>]
+- name: Configure Ansible Automation Platform from code
+  hosts: localhost
+  gather_facts: false
+  pre_tasks:
+    - name: Configure Ansible Automation Platform | Load configs
+      ansible.builtin.include_vars:
+        dir: "{{ automation_platform_configs_dir | default(playbook_dir ~ '/../configs/automation_platform') }}"
+        extensions: [yml]
+        ignore_unknown_extensions: true
+      tags: [always]
+  roles:
+    - role: infra.aap_configuration.dispatch
+...

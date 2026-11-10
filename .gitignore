@@ -1,0 +1,21 @@
+# --- secrets: never commit ---
+secrets.yml
+*secrets*.yml
+!**/templates/*secret*.yml.j2
+vault*.yml
+.vault_pass*
+*.vault
+env_variables.yml
+*.pem
+*.key
+*.crt
+.env
+# --- generated / local ---
+.ansible/
+collections/ansible_collections/
+exports/
+*.retry
+*.log
+.venv/
+__pycache__/
+.DS_Store

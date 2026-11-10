@@ -1,0 +1,11 @@
+---
+galaxy_info:
+  author: ansible-config-as-code contributors
+  description: Install Red Hat Automation Orchestrator on OpenShift (operator, bring-your-own PostgreSQL, instance)
+  license: GPL-3.0-or-later
+  min_ansible_version: "2.16"
+  platforms:
+    - name: GenericLinux
+      versions: [all]
+dependencies: []
+...

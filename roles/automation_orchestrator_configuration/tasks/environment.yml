@@ -1,0 +1,71 @@
+---
+# Automation Orchestrator 2026.8 configure guide: integration URLs and OpenID Connect issuers that resolve to private IP
+# addresses are rejected unless allowed. The custom resource has no field for these, so they are Deployment environment
+# variables. The operator may drop them on upgrade or redeploy, so every run re-applies them (strategic merge keyed by
+# variable name; operator-managed variables are untouched).
+#  - APP_INTEGRATION_URL_ALLOWED_HOSTS: backend, worker, background-worker (all three, or workflows fail at runtime)
+#  - APP_OIDC_ALLOW_PRIVATE_NETWORKS: backend
+- name: Environment | Build the integration allowlist
+  ansible.builtin.set_fact:
+    __orchestrator_allowed_hosts: >-
+      {{ ([__orchestrator_platform_host]
+          + ((automation_orchestrator_configuration_integration_extra_allowed_hosts.split(',')
+              if automation_orchestrator_configuration_integration_extra_allowed_hosts is string
+              else automation_orchestrator_configuration_integration_extra_allowed_hosts)
+             | map('trim') | select | list)) | unique }}
+
+- name: Environment | Patch Automation Orchestrator deployments
+  kubernetes.core.k8s:
+    state: patched
+    merge_type: strategic-merge
+    api_version: apps/v1
+    kind: Deployment
+    name: "{{ automation_orchestrator_configuration_instance_name }}-{{ __orchestrator_environment_item.component }}"
+    namespace: "{{ automation_orchestrator_configuration_namespace }}"
+    definition:
+      spec:
+        template:
+          spec:
+            containers:
+              - name: "{{ __orchestrator_environment_item.component }}"
+                env: "{{ __orchestrator_environment_item.env }}"
+  loop:
+    - component: backend
+      env:
+        - name: APP_INTEGRATION_URL_ALLOWED_HOSTS
+          value: "{{ __orchestrator_allowed_hosts | to_json }}"
+        - name: APP_OIDC_ALLOW_PRIVATE_NETWORKS
+          value: "{{ automation_orchestrator_configuration_oidc_allow_private_networks | bool | string | lower }}"
+    - component: worker
+      env:
+        - name: APP_INTEGRATION_URL_ALLOWED_HOSTS
+          value: "{{ __orchestrator_allowed_hosts | to_json }}"
+    - component: background-worker
+      env:
+        - name: APP_INTEGRATION_URL_ALLOWED_HOSTS
+          value: "{{ __orchestrator_allowed_hosts | to_json }}"
+  loop_control:
+    loop_var: __orchestrator_environment_item
+    label: "{{ __orchestrator_environment_item.component }}"
+  register: __orchestrator_environment_patch
+
+- name: Environment | Wait for patched deployments to finish rolling out
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: "{{ automation_orchestrator_configuration_instance_name }}-{{ __orchestrator_rollout_item }}"
+    namespace: "{{ automation_orchestrator_configuration_namespace }}"
+  loop: [backend, worker, background-worker]
+  loop_control:
+    loop_var: __orchestrator_rollout_item
+  register: __orchestrator_rollout
+  until: >-
+    __orchestrator_rollout.resources | length > 0 and
+    (__orchestrator_rollout.resources[0].status.observedGeneration | default(0)) >= __orchestrator_rollout.resources[0].metadata.generation and
+    (__orchestrator_rollout.resources[0].status.updatedReplicas | default(0)) == __orchestrator_rollout.resources[0].spec.replicas and
+    (__orchestrator_rollout.resources[0].status.availableReplicas | default(0)) == __orchestrator_rollout.resources[0].spec.replicas and
+    (__orchestrator_rollout.resources[0].status.replicas | default(0)) == __orchestrator_rollout.resources[0].spec.replicas
+  retries: "{{ automation_orchestrator_configuration_wait_retries }}"
+  delay: "{{ automation_orchestrator_configuration_wait_delay }}"
+  when: __orchestrator_environment_patch is changed  # noqa: no-handler (must finish before the next tasks log in)
+...

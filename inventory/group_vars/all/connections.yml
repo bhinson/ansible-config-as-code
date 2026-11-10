@@ -1,0 +1,20 @@
+---
+# Connection settings for LOCAL runs (values from the environment exported by scripts/env.sh).
+# In Ansible Automation Platform (AAP), job template credentials supply them instead:
+#  - "Red Hat Ansible Automation Platform" injects aap_hostname / aap_token / aap_validate_certs as extra vars
+#    (which override these) plus AAP_* environment variables.
+#  - "OpenShift API (configuration as code)" (custom type in configs/automation_platform/credential_types.yml) injects K8S_AUTH_HOST,
+#    K8S_AUTH_API_KEY and K8S_AUTH_SSL_CA_CERT. The managed "OpenShift or Kubernetes API Bearer Token" type
+#    injects nothing into jobs (container groups only), so don't use it for playbooks.
+
+# --- AAP (infra.aap_configuration / ansible.platform): use the platform GATEWAY URL ---
+aap_hostname: "{{ lookup('ansible.builtin.env', 'AAP_HOSTNAME') }}"
+aap_token: "{{ lookup('ansible.builtin.env', 'AAP_TOKEN') }}"
+aap_validate_certs: "{{ lookup('ansible.builtin.env', 'AAP_VALIDATE_CERTS') | default('true', true) | bool }}"
+aap_configuration_secure_logging: true
+aap_configuration_collect_logs: true
+
+# --- OpenShift (kubernetes.core / redhat.openshift) ---
+# The k8s modules read K8S_AUTH_HOST, K8S_AUTH_API_KEY and K8S_AUTH_SSL_CA_CERT from the environment,
+# so no per-task auth parameters are needed.
+...

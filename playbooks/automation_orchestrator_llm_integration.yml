@@ -1,0 +1,12 @@
+---
+# Connect Automation Orchestrator (AO) to an OpenAI v1 API-compatible large language model (LLM) provider so workflow
+# agent nodes can use it. Run after playbooks/openshift_automation_orchestrator.yml.
+# In Ansible Automation Platform: job template "Automation Orchestrator | Configure LLM provider integration"
+# (survey supplies inputs, including the API key; credential: OpenShift API (configuration as code)).
+#   Local test: source scripts/env.sh && ansible-playbook playbooks/automation_orchestrator_llm_integration.yml -e @my-vars.yml
+- name: Connect Automation Orchestrator to an LLM provider
+  hosts: localhost
+  gather_facts: false
+  roles:
+    - role: automation_orchestrator_llm_integration
+...

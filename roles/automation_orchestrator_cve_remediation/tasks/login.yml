@@ -1,0 +1,25 @@
+---
+# AO configure guide: POST /api/v1/auth/login (built-in admin) returns a 15-minute bearer token.
+- name: Login | Get an Automation Orchestrator access token
+  ansible.builtin.uri:
+    url: "{{ __orchestrator_cve_url }}/api/v1/auth/login"
+    method: POST
+    body_format: json
+    body:
+      username: "{{ automation_orchestrator_cve_remediation_admin_username }}"
+      password: "{{ __orchestrator_cve_admin_password }}"
+    ca_path: "{{ __orchestrator_cve_ca_file.path }}"
+    validate_certs: "{{ automation_orchestrator_cve_remediation_validate_certs | bool }}"
+    status_code: 200
+  register: __orchestrator_cve_login
+  retries: "{{ automation_orchestrator_cve_remediation_wait_retries }}"
+  delay: "{{ automation_orchestrator_cve_remediation_wait_delay }}"
+  until: __orchestrator_cve_login.status == 200
+  no_log: true
+
+- name: Login | Keep the token
+  ansible.builtin.set_fact:
+    __orchestrator_cve_headers:
+      Authorization: "Bearer {{ __orchestrator_cve_login.json.access_token }}"
+  no_log: true
+...

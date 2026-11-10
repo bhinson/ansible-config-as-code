@@ -1,0 +1,86 @@
+---
+- name: Discover | Read the OpenShift ingress certificate authority
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: ConfigMap
+    namespace: openshift-config-managed
+    name: default-ingress-cert
+  register: __orchestrator_ingress_ca
+  when: automation_orchestrator_configuration_ca_certificate | length == 0
+
+- name: Discover | Set the certificate authority bundle
+  ansible.builtin.set_fact:
+    __orchestrator_ca: >-
+      {{ automation_orchestrator_configuration_ca_certificate
+         if automation_orchestrator_configuration_ca_certificate | length > 0
+         else __orchestrator_ingress_ca.resources[0].data['ca-bundle.crt'] }}
+
+- name: Discover | Create a temporary certificate authority file for API calls
+  ansible.builtin.tempfile:
+    state: file
+    suffix: .pem
+  register: __orchestrator_ca_file
+
+- name: Discover | Write the certificate authority file
+  ansible.builtin.copy:
+    content: "{{ __orchestrator_ca }}"
+    dest: "{{ __orchestrator_ca_file.path }}"
+    mode: "0600"
+
+- name: Discover | Find the Automation Orchestrator route
+  kubernetes.core.k8s_info:
+    api_version: route.openshift.io/v1
+    kind: Route
+    namespace: "{{ automation_orchestrator_configuration_namespace }}"
+  register: __orchestrator_routes
+  when: automation_orchestrator_configuration_url | length == 0
+
+- name: Discover | Read the Automation Orchestrator admin password secret
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Secret
+    namespace: "{{ automation_orchestrator_configuration_namespace }}"
+    name: "{{ automation_orchestrator_configuration_admin_password_secret }}"
+  register: __orchestrator_admin_secret
+  when: automation_orchestrator_configuration_admin_password | length == 0
+  no_log: true
+
+- name: Discover | Resolve URLs, tokens and passwords
+  ansible.builtin.set_fact:
+    __orchestrator_url: >-
+      {{ (automation_orchestrator_configuration_url if automation_orchestrator_configuration_url | length > 0
+          else 'https://' ~ (__orchestrator_routes.resources | map(attribute='spec.host') | first)) | regex_replace('/+$', '') }}
+    __orchestrator_platform_url: >-
+      {{ ((automation_orchestrator_configuration_platform_url
+           if automation_orchestrator_configuration_platform_url | length > 0
+           else aap_hostname | default(''))
+          | regex_replace('^(?!https?://)(.+)$', 'https://\1')) | regex_replace('/+$', '') }}
+    __orchestrator_platform_token: >-
+      {{ automation_orchestrator_configuration_platform_token if automation_orchestrator_configuration_platform_token | length > 0
+         else ((aap_token.token if aap_token is mapping else aap_token) | default('')) }}
+    __orchestrator_admin_password: >-
+      {{ automation_orchestrator_configuration_admin_password if automation_orchestrator_configuration_admin_password | length > 0
+         else (__orchestrator_admin_secret.resources[0].data.password | b64decode) }}
+  no_log: true
+
+- name: Discover | Derive the Ansible Automation Platform host
+  ansible.builtin.set_fact:
+    __orchestrator_platform_host: "{{ __orchestrator_platform_url | urlsplit('hostname') }}"
+
+- name: Discover | Check required inputs
+  ansible.builtin.assert:
+    that:
+      - __orchestrator_url is match('https://.+')
+      - __orchestrator_platform_url is match('https?://.+')
+      - __orchestrator_platform_token | length > 0 or not (automation_orchestrator_configuration_configure_single_sign_on | bool)
+      - >-
+        not (automation_orchestrator_configuration_configure_integration | bool)
+        or automation_orchestrator_configuration_integration_token | length > 0
+        or (automation_orchestrator_configuration_integration_username | length > 0
+            and automation_orchestrator_configuration_integration_password | length > 0)
+    fail_msg: >-
+      Need: the Automation Orchestrator route (or automation_orchestrator_configuration_url), the Ansible Automation
+      Platform URL (Red Hat Ansible Automation Platform credential or automation_orchestrator_configuration_platform_url),
+      an Ansible Automation Platform token for single sign-on setup, and an integration token or username/password.
+    quiet: true
+...

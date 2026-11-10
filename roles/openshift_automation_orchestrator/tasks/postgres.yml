@@ -1,0 +1,30 @@
+---
+- name: Postgres | Apply config, init script, service and StatefulSet
+  kubernetes.core.k8s:
+    state: present
+    apply: true
+    template: postgres.yml.j2
+
+- name: Postgres | Wait for the StatefulSet to be ready
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: StatefulSet
+    name: "{{ openshift_automation_orchestrator_postgres_service }}"
+    namespace: "{{ openshift_automation_orchestrator_namespace }}"
+  register: __orchestrator_install_postgres
+  until: (__orchestrator_install_postgres.resources[0].status.readyReplicas | default(0)) >= 1
+  retries: "{{ openshift_automation_orchestrator_wait_retries }}"
+  delay: "{{ openshift_automation_orchestrator_wait_delay }}"
+
+# The init script only runs on a fresh data directory. Make sure the Temporal visibility database exists on
+# databases created before that fix (the operator's migration job does not create it).
+- name: Postgres | Ensure temporal_visibility database exists
+  kubernetes.core.k8s_exec:
+    namespace: "{{ openshift_automation_orchestrator_namespace }}"
+    pod: "{{ openshift_automation_orchestrator_postgres_service }}-0"
+    command: >-
+      bash -c "psql -tAc \"SELECT 1 FROM pg_database WHERE datname='temporal_visibility'\" | grep -q 1
+      || psql -v ON_ERROR_STOP=1 -c 'CREATE DATABASE temporal_visibility OWNER temporal'"
+  register: __orchestrator_install_visibility
+  changed_when: "'CREATE DATABASE' in __orchestrator_install_visibility.stdout"
+...

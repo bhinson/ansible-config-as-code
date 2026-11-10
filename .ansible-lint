@@ -1,0 +1,9 @@
+---
+profile: production
+offline: true
+exclude_paths:
+  - collections/
+  - exports/
+  - .ansible/
+  - .venv/
+...

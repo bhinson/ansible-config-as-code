@@ -1,0 +1,5 @@
+# Python libraries needed on the control node (or in the execution environment)
+kubernetes>=24.2.0      # kubernetes.core / redhat.openshift modules
+PyYAML
+requests
+jmespath

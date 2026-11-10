@@ -1,0 +1,13 @@
+---
+# Configure Automation Orchestrator for Ansible Automation Platform (AAP): deployment allowlists, the Ansible Automation
+# Platform integration, and AAP single sign-on.
+# Run after playbooks/openshift_automation_orchestrator.yml. In AAP: job template
+# "Automation Orchestrator | Configure Ansible Automation Platform integration" (survey supplies inputs; credentials:
+# OpenShift API (configuration as code) + Red Hat Ansible Automation Platform).
+#   Local test: source scripts/env.sh && ansible-playbook playbooks/automation_orchestrator_configuration.yml -e @my-vars.yml
+- name: Configure Automation Orchestrator for Ansible Automation Platform
+  hosts: localhost
+  gather_facts: false
+  roles:
+    - role: automation_orchestrator_configuration
+...

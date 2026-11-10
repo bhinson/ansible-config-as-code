@@ -1,0 +1,47 @@
+---
+# Uses kubernetes.core (Red Hat certified) for cluster objects, and ansible.builtin.uri for the Automation Orchestrator (AO)
+# and Ansible Automation Platform (AAP) REST APIs: no certified collection covers AO, and the Ansible
+# Automation Platform OAuth client secret is only returned by the create call.
+# Cluster authentication: K8S_AUTH_* environment variables (job credential).
+# AAP authentication: aap_hostname / aap_token (job credential).
+
+- name: Main | Configure Automation Orchestrator
+  module_defaults:
+    group/kubernetes.core.k8s:
+      validate_certs: "{{ automation_orchestrator_configuration_validate_certs | bool }}"
+  block:
+    - name: Main | Discover settings from the cluster and job credentials
+      ansible.builtin.include_tasks: discover.yml
+
+    - name: Main | Apply Automation Orchestrator deployment environment settings
+      ansible.builtin.include_tasks: environment.yml
+      when: automation_orchestrator_configuration_manage_environment | bool
+
+    - name: Main | Log in to Automation Orchestrator
+      ansible.builtin.include_tasks: login.yml
+
+    - name: Main | Configure the Ansible Automation Platform integration
+      ansible.builtin.include_tasks: integration.yml
+      when: automation_orchestrator_configuration_configure_integration | bool
+
+    - name: Main | Configure Ansible Automation Platform single sign-on
+      ansible.builtin.include_tasks: single_sign_on.yml
+      when: automation_orchestrator_configuration_configure_single_sign_on | bool
+
+    - name: Main | Report
+      ansible.builtin.debug:
+        msg:
+          - "Automation Orchestrator: {{ __orchestrator_url }}  Ansible Automation Platform: {{ __orchestrator_platform_url }}"
+          - >-
+            Integration '{{ automation_orchestrator_configuration_integration_name }}':
+            {{ __orchestrator_integration_status | default('skipped') }}
+          - >-
+            Identity provider '{{ automation_orchestrator_configuration_identity_provider_name }}':
+            {{ __orchestrator_identity_provider_status | default('skipped') }}
+  always:
+    - name: Main | Remove the temporary certificate authority file
+      ansible.builtin.file:
+        path: "{{ __orchestrator_ca_file.path }}"
+        state: absent
+      when: __orchestrator_ca_file.path is defined
+...

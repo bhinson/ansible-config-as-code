@@ -1,0 +1,17 @@
+---
+# Installed automatically by Ansible Automation Platform (AAP) project sync using the organization's Galaxy credentials (in AAP's order).
+# Preference order (see CLAUDE.md): Red Hat certified > Red Hat validated > community/Galaxy.
+collections:
+  # --- Red Hat certified (console.redhat.com "published") ---
+  - name: ansible.platform        # AAP 2.5+ gateway: orgs, teams, users, authenticators, tokens
+  - name: ansible.controller      # automation controller objects
+    version: ">=4.6.0"
+  - name: ansible.eda             # Event-Driven Ansible objects
+  - name: ansible.hub             # private automation hub objects
+  - name: redhat.openshift        # OpenShift-specific modules (routes, auth, templates)
+  - name: kubernetes.core         # generic k8s apply/info/wait (Red Hat certified, dependency of redhat.openshift)
+  # --- Red Hat validated (console.redhat.com "validated") ---
+  - name: infra.aap_configuration           # configuration as code (CaC) roles + dispatch for AAP 2.5+
+  # --- extended CaC roles (filetree export/read, object_diff); validated if available, else Galaxy ---
+  - name: infra.aap_configuration_extended
+...

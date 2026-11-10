@@ -1,0 +1,40 @@
+---
+# Uses kubernetes.core (Red Hat certified) to discover AO from the cluster, and ansible.builtin.uri for the AO REST API
+# (no certified collection covers AO). Cluster authentication: K8S_AUTH_* environment variables (job credential).
+# A provider that resolves to a private IP address must also be in AO's integration allowlist
+# (APP_INTEGRATION_URL_ALLOWED_HOSTS): add its host to the automation_orchestrator_configuration role's
+# extra allowed hosts, which owns that setting.
+
+- name: Main | Connect Automation Orchestrator to an LLM provider
+  module_defaults:
+    group/kubernetes.core.k8s:
+      validate_certs: "{{ automation_orchestrator_llm_integration_validate_certs | bool }}"
+  block:
+    - name: Main | Discover Automation Orchestrator and check inputs
+      ansible.builtin.include_tasks: discover.yml
+
+    - name: Main | Log in to Automation Orchestrator
+      ansible.builtin.include_tasks: login.yml
+
+    - name: Main | Create or update the LLM provider credential
+      ansible.builtin.include_tasks: credential.yml
+
+    - name: Main | Create or update the LLM provider integration
+      ansible.builtin.include_tasks: integration.yml
+
+    - name: Main | Enable models and set the default
+      ansible.builtin.include_tasks: models.yml
+
+    - name: Main | Report
+      ansible.builtin.debug:
+        msg:
+          - "Automation Orchestrator: {{ __orchestrator_llm_url }}"
+          - "Integration '{{ automation_orchestrator_llm_integration_name }}': {{ __orchestrator_llm_status }}"
+          - "Enabled models: {{ __orchestrator_llm_enabled_report }}"
+  always:
+    - name: Main | Remove the temporary certificate authority file
+      ansible.builtin.file:
+        path: "{{ __orchestrator_llm_ca_file.path }}"
+        state: absent
+      when: __orchestrator_llm_ca_file.path is defined
+...

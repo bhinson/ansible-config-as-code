@@ -1,0 +1,117 @@
+---
+# OpenAPI: POST /workflows/validate (WorkflowValidateRequest), POST /workflows (WorkflowCreate), PATCH /workflows/{id}
+# (WorkflowUpdate; a new definition creates a new version), POST /workflows/{id}/versions/{version}/publish.
+# Idempotency: the definition's SHA-256 is kept in the workflow labels; nothing is saved when it matches and the
+# current version is published.
+- name: Workflow | Fingerprint the desired definition
+  ansible.builtin.set_fact:
+    __orchestrator_cve_sha256: "{{ __automation_orchestrator_cve_remediation_definition | to_json(sort_keys=true) | hash('sha256') }}"
+
+- name: Workflow | Validate the definition
+  ansible.builtin.uri:
+    url: "{{ __orchestrator_cve_url }}/api/v1/workflows/validate"
+    method: POST
+    headers: "{{ __orchestrator_cve_headers }}"
+    body_format: json
+    body:
+      workflow_definition: "{{ __automation_orchestrator_cve_remediation_definition }}"
+    ca_path: "{{ __orchestrator_cve_ca_file.path }}"
+    validate_certs: "{{ automation_orchestrator_cve_remediation_validate_certs | bool }}"
+    status_code: [200, 422]
+  register: __orchestrator_cve_validate
+
+- name: Workflow | Stop on validation errors
+  ansible.builtin.fail:
+    msg: >-
+      The workflow definition is invalid:
+      {{ __orchestrator_cve_validate.json.validation_result.findings | default(__orchestrator_cve_validate.json)
+         | selectattr('severity', 'equalto', 'error') | map(attribute='message') | list }}
+  when: __orchestrator_cve_validate.status == 422
+
+- name: Workflow | List workflows
+  ansible.builtin.uri:
+    url: "{{ __orchestrator_cve_url }}/api/v1/workflows?limit=100"
+    headers: "{{ __orchestrator_cve_headers }}"
+    ca_path: "{{ __orchestrator_cve_ca_file.path }}"
+    validate_certs: "{{ automation_orchestrator_cve_remediation_validate_certs | bool }}"
+  register: __orchestrator_cve_workflows
+
+- name: Workflow | Find an existing workflow
+  ansible.builtin.set_fact:
+    __orchestrator_cve_existing: >-
+      {{ __orchestrator_cve_workflows.json.resources
+         | selectattr('name', 'equalto', automation_orchestrator_cve_remediation_workflow_name) | first | default({}) }}
+    __orchestrator_cve_labels:
+      managed-by: configuration-as-code
+      definition-sha256: "{{ __orchestrator_cve_sha256 }}"
+
+- name: Workflow | Create the workflow
+  ansible.builtin.uri:
+    url: "{{ __orchestrator_cve_url }}/api/v1/workflows"
+    method: POST
+    headers: "{{ __orchestrator_cve_headers }}"
+    body_format: json
+    body:
+      name: "{{ automation_orchestrator_cve_remediation_workflow_name }}"
+      description: "{{ automation_orchestrator_cve_remediation_workflow_description }}"
+      labels: "{{ __orchestrator_cve_labels }}"
+      project_id: "{{ __orchestrator_cve_project.id }}"
+      workflow_definition: "{{ __automation_orchestrator_cve_remediation_definition }}"
+    ca_path: "{{ __orchestrator_cve_ca_file.path }}"
+    validate_certs: "{{ automation_orchestrator_cve_remediation_validate_certs | bool }}"
+    status_code: 201
+  register: __orchestrator_cve_create
+  when: __orchestrator_cve_existing | length == 0
+  changed_when: true
+
+- name: Workflow | Save a new version if the definition changed
+  ansible.builtin.uri:
+    url: "{{ __orchestrator_cve_url }}/api/v1/workflows/{{ __orchestrator_cve_existing.id }}"
+    method: PATCH
+    headers: "{{ __orchestrator_cve_headers }}"
+    body_format: json
+    body:
+      description: "{{ automation_orchestrator_cve_remediation_workflow_description }}"
+      labels: "{{ __orchestrator_cve_existing.labels | default({}, true) | combine(__orchestrator_cve_labels) }}"
+      workflow_definition: "{{ __automation_orchestrator_cve_remediation_definition }}"
+      change_description: Updated by configuration as code ({{ __orchestrator_cve_sha256[:12] }})
+      expected_version: "{{ __orchestrator_cve_existing.current_version }}"
+    ca_path: "{{ __orchestrator_cve_ca_file.path }}"
+    validate_certs: "{{ automation_orchestrator_cve_remediation_validate_certs | bool }}"
+  register: __orchestrator_cve_update
+  when:
+    - __orchestrator_cve_existing | length > 0
+    - (__orchestrator_cve_existing.labels | default({}, true))['definition-sha256'] | default('') != __orchestrator_cve_sha256
+  changed_when: true
+
+- name: Workflow | Work out the version to publish
+  ansible.builtin.set_fact:
+    __orchestrator_cve_id: >-
+      {{ __orchestrator_cve_create.json.id if __orchestrator_cve_create is changed else __orchestrator_cve_existing.id }}
+    __orchestrator_cve_version: >-
+      {{ __orchestrator_cve_create.json.current_version if __orchestrator_cve_create is changed
+         else (__orchestrator_cve_update.json.current_version if __orchestrator_cve_update is changed
+               else __orchestrator_cve_existing.current_version) }}
+    __orchestrator_cve_published: >-
+      {{ (__orchestrator_cve_existing.published_version_number | default(none)) == __orchestrator_cve_existing.current_version | default(-1)
+         and __orchestrator_cve_update is not changed and __orchestrator_cve_create is not changed }}
+
+- name: Workflow | Publish the version
+  ansible.builtin.uri:
+    url: "{{ __orchestrator_cve_url }}/api/v1/workflows/{{ __orchestrator_cve_id }}/versions/{{ __orchestrator_cve_version }}/publish"
+    method: POST
+    headers: "{{ __orchestrator_cve_headers }}"
+    body_format: json
+    body:
+      change_description: Published by configuration as code ({{ __orchestrator_cve_sha256[:12] }})
+    ca_path: "{{ __orchestrator_cve_ca_file.path }}"
+    validate_certs: "{{ automation_orchestrator_cve_remediation_validate_certs | bool }}"
+  when: automation_orchestrator_cve_remediation_publish | bool and not (__orchestrator_cve_published | bool)
+  changed_when: true
+
+- name: Workflow | Record status
+  ansible.builtin.set_fact:
+    __orchestrator_cve_status: >-
+      {{ 'created' if __orchestrator_cve_create is changed else ('updated' if __orchestrator_cve_update is changed else 'unchanged') }},
+      version {{ __orchestrator_cve_version }}{{ ' (published)' if automation_orchestrator_cve_remediation_publish | bool else '' }}
+...

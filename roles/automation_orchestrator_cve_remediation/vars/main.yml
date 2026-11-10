@@ -1,0 +1,229 @@
+---
+# The AO workflow definition (schema 2.0.0). ${...} expressions are resolved by AO at run time (AO reference guide:
+# trigger fields ${trigger.x}; REST API step ${id.body}; job template step ${id.artifacts}; Task Agent ${id.output};
+# approval ports approved/rejected). {{ ... }} values are filled in by this role.
+__automation_orchestrator_cve_remediation_job_template_common:
+  organization_name: "{{ automation_orchestrator_cve_remediation_organization_name }}"
+  integration_id: "{{ __orchestrator_cve_platform.id }}"
+  credential_id: "{{ __orchestrator_cve_platform_credential_id }}"
+
+__automation_orchestrator_cve_remediation_definition:
+  schema_version: "2.0.0"
+  name: "{{ automation_orchestrator_cve_remediation_workflow_name }}"
+  description: "{{ automation_orchestrator_cve_remediation_workflow_description }}"
+  triggers:
+    - id: start
+      name: Enter a CVE
+      type: manual_trigger
+      position: {x: 0, y: 300}
+      parameters:
+        input_schema:
+          $schema: http://json-schema.org/draft-07/schema#
+          type: object
+          required: [cve_id]
+          properties:
+            cve_id:
+              type: string
+              title: CVE ID
+              description: For example CVE-2024-6387
+              pattern: "^CVE-[0-9]{4}-[0-9]{4,}$"
+            limit:
+              type: string
+              title: Host limit (optional)
+              description: Hosts or groups in the job template's inventory to check; empty = all hosts
+              default: ""
+
+  nodes:
+    - id: cve_lookup
+      name: Look up the CVE in the Red Hat CVE database
+      type: http_request
+      position: {x: 300, y: 300}
+      parameters:
+        method: GET
+        url: "{{ automation_orchestrator_cve_remediation_security_data_url }}/cve/${trigger.cve_id}.json"
+        headers: {Accept: application/json}
+
+    - id: assess
+      name: Assess hosts (installed packages, fixes available from Satellite)
+      type: aap_job_template
+      position: {x: 600, y: 300}
+      parameters: >-
+        {{ __automation_orchestrator_cve_remediation_job_template_common | combine({
+             'job_template_name': automation_orchestrator_cve_remediation_assess_job_template,
+             'limit': '${trigger.limit}',
+             'extra_vars': {'cve_id': '${trigger.cve_id}'}}) }}
+
+    - id: triage
+      name: "[AI] Decide which hosts are vulnerable and fixable"
+      type: agentic
+      position: {x: 900, y: 300}
+      parameters:
+        llm_model_id: "{{ __orchestrator_cve_model.id }}"
+        tool_selection_strategy: NONE
+        prompt: |
+          You are a Red Hat Enterprise Linux vulnerability triage assistant. Decide which hosts are vulnerable to
+          ${trigger.cve_id} and which of them can be fixed now from their Red Hat Satellite repositories.
+          Use only the data below. Never invent hosts, packages or advisories.
+
+          Red Hat CVE record (Red Hat security data API):
+          - Severity: ${cve_lookup.body.threat_severity}
+          - CVSS v3 base score: ${cve_lookup.body.cvss3.cvss3_base_score}
+          - Public date: ${cve_lookup.body.public_date}
+          - Description: ${cve_lookup.body.bugzilla.description}
+          - Fixed releases (advisory, fixed package, product): ${cve_lookup.body.affected_release}
+          - Other product states (affected, not affected, will not fix): ${cve_lookup.body.package_state}
+
+          Host assessment from the job "Assess hosts":
+          - Source packages checked: ${assess.artifacts.ao_source_packages}
+          - Hosts (installed_packages = installed binaries built from those source packages; fixes_available = advisories
+            for this CVE that the host can install now from its repositories, which come from Satellite; fixes_installed =
+            advisories for this CVE already applied; rhel_major; registered_to = registration server):
+            ${assess.artifacts.ao_hosts}
+          - Unreachable hosts: ${assess.artifacts.ao_unreachable_hosts}
+
+          Rules:
+          1. A host is vulnerable if fixes_available is not empty, or if an installed package is older than the fixed
+             package listed for the host's RHEL major release.
+          2. A vulnerable host is remediable only if its fixes_available is not empty.
+          3. A host with no installed packages from the source packages, or with an empty fixes_available and the fixes in
+             fixes_installed, is not affected.
+          4. route is "remediate" if at least one host is remediable, "no_fix_available" if hosts are vulnerable but none
+             is remediable, otherwise "not_affected".
+          5. remediable_hosts_limit is the remediable host names joined with commas and no spaces ("" if none).
+          6. packages_to_update are the package names in fixes_available on remediable hosts; advisories are their
+             advisory IDs.
+          Return only JSON that matches the response schema.
+        responseSchema:
+          type: object
+          required: [route, severity, vulnerable_hosts, remediable_hosts, remediable_hosts_limit, reasoning]
+          properties:
+            route: {type: string, enum: [remediate, no_fix_available, not_affected]}
+            severity: {type: string}
+            cvss_score: {type: number}
+            vulnerable_hosts: {type: array, items: {type: string}}
+            remediable_hosts: {type: array, items: {type: string}}
+            remediable_hosts_limit: {type: string}
+            not_remediable_hosts: {type: array, items: {type: string}}
+            not_affected_hosts: {type: array, items: {type: string}}
+            advisories: {type: array, items: {type: string}}
+            packages_to_update: {type: array, items: {type: string}}
+            reasoning: {type: string}
+
+    - id: route
+      name: Route on the triage decision
+      type: switch
+      position: {x: 1200, y: 300}
+      parameters:
+        cases:
+          - port: case_0
+            label: Fix available - ask for approval
+            condition: ${triage.output.route} == "remediate"
+          - port: case_1
+            label: Vulnerable, no fix in Satellite - report
+            condition: ${triage.output.route} == "no_fix_available"
+        default_port: default
+
+    - id: approve
+      name: Approve installing the fix
+      type: approval
+      position: {x: 1500, y: 150}
+      parameters:
+        approver_groups: "{{ __orchestrator_cve_approver_groups }}"
+        approver_users: "{{ __orchestrator_cve_approver_users }}"
+        decision_window: "{{ automation_orchestrator_cve_remediation_decision_window | int }}"
+        prompt: |
+          Approve installing the fix for ${trigger.cve_id} (Red Hat severity ${cve_lookup.body.threat_severity},
+          CVSS ${cve_lookup.body.cvss3.cvss3_base_score}) from Satellite.
+          Hosts: ${triage.output.remediable_hosts_limit}
+          Advisories: ${triage.output.advisories}
+          Packages: ${triage.output.packages_to_update}
+          Method: dnf update-minimal --cve (only the advisory packages); hosts reboot only if dnf needs-restarting says so.
+          Triage reasoning: ${triage.output.reasoning}
+          Rejecting, or no decision within the window, stops the workflow without changes.
+
+    - id: apply
+      name: Apply the fix from Satellite and verify
+      type: aap_job_template
+      position: {x: 1800, y: 150}
+      parameters: >-
+        {{ __automation_orchestrator_cve_remediation_job_template_common | combine({
+             'job_template_name': automation_orchestrator_cve_remediation_apply_job_template,
+             'limit': '${triage.output.remediable_hosts_limit}',
+             'extra_vars': {'cve_id': '${trigger.cve_id}',
+                            'cve_remediation_reboot': automation_orchestrator_cve_remediation_reboot | bool}}) }}
+
+    - id: report
+      name: "[AI] Remediation report"
+      type: agentic
+      position: {x: 2100, y: 150}
+      parameters:
+        llm_model_id: "{{ __orchestrator_cve_model.id }}"
+        tool_selection_strategy: NONE
+        prompt: |
+          Write a short remediation report for ${trigger.cve_id} (Red Hat severity ${cve_lookup.body.threat_severity}).
+          Approved by ${approve.decided_by} at ${approve.decided_at}.
+          Results from the job "Apply the fix" (fixes_before = pending fixes before the update; fixes_still_pending =
+          pending fixes after it; updated; reboot_needed; rebooted): ${apply.artifacts.ao_results}
+          Remediated hosts: ${apply.artifacts.ao_remediated_hosts}
+          Still vulnerable hosts: ${apply.artifacts.ao_still_vulnerable_hosts}
+          Rebooted hosts: ${apply.artifacts.ao_rebooted_hosts}
+          Failed or unreachable hosts: ${apply.artifacts.ao_failed_hosts}
+          Hosts the triage step could not remediate: ${triage.output.not_remediable_hosts}
+          status is "remediated" when every targeted host is remediated, "partially_remediated" when some are,
+          otherwise "failed". Use only this data. Return only JSON that matches the response schema.
+        responseSchema:
+          type: object
+          required: [status, summary]
+          properties:
+            status: {type: string, enum: [remediated, partially_remediated, failed]}
+            summary: {type: string}
+            remediated_hosts: {type: array, items: {type: string}}
+            still_vulnerable_hosts: {type: array, items: {type: string}}
+            rebooted_hosts: {type: array, items: {type: string}}
+            follow_up: {type: array, items: {type: string}}
+
+    - id: no_fix_report
+      name: "[AI] No fix available report"
+      type: agentic
+      position: {x: 1500, y: 450}
+      parameters:
+        llm_model_id: "{{ __orchestrator_cve_model.id }}"
+        tool_selection_strategy: NONE
+        prompt: |
+          Hosts are vulnerable to ${trigger.cve_id} (Red Hat severity ${cve_lookup.body.threat_severity}) but no fix is
+          installable from their Satellite repositories.
+          Vulnerable hosts: ${triage.output.vulnerable_hosts}
+          Triage reasoning: ${triage.output.reasoning}
+          Host assessment: ${assess.artifacts.ao_hosts}
+          Red Hat fixed releases: ${cve_lookup.body.affected_release}
+          Red Hat product states: ${cve_lookup.body.package_state}
+          Red Hat mitigation: ${cve_lookup.body.mitigation}
+          Red Hat statement: ${cve_lookup.body.statement}
+          Explain the likely cause for each host (for example: Red Hat has not released a fix for its RHEL version, the
+          fixing advisory is not in the host's Satellite content view yet, or the host is not registered to Satellite)
+          and recommend next steps, including any Red Hat mitigation. Use only this data. Return only JSON that matches
+          the response schema.
+        responseSchema:
+          type: object
+          required: [summary, recommended_actions]
+          properties:
+            summary: {type: string}
+            hosts:
+              type: array
+              items:
+                type: object
+                properties:
+                  host: {type: string}
+                  likely_cause: {type: string}
+            recommended_actions: {type: array, items: {type: string}}
+
+  edges:
+    - {from: start, to: cve_lookup}
+    - {from: cve_lookup, to: assess}
+    - {from: assess, to: triage}
+    - {from: triage, to: route}
+    - {from: route, to: approve, from_port: case_0}
+    - {from: route, to: no_fix_report, from_port: case_1}
+    - {from: approve, to: apply, from_port: approved}
+    - {from: apply, to: report}
+...

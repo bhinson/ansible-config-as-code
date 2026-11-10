@@ -1,0 +1,11 @@
+---
+controller_projects:
+  - name: Configuration as code - ansible-config-as-code
+    description: Configuration as code (roles/playbooks for OpenShift and Ansible Automation Platform)
+    organization: "{{ site_organization }}"
+    scm_type: git
+    scm_url: "{{ site_project_scm_url }}"
+    scm_branch: "{{ site_project_scm_branch }}"
+    scm_update_on_launch: true
+    default_environment: "{{ site_execution_environment }}"
+...

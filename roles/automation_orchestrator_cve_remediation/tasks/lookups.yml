@@ -1,0 +1,83 @@
+---
+# Resolve names to AO IDs (OpenAPI: GET /projects, /integrations, /integrations/{id}/models, /credentials).
+- name: Lookups | List projects, integrations and credentials
+  ansible.builtin.uri:
+    url: "{{ __orchestrator_cve_url }}/api/v1/{{ __orchestrator_cve_lookup_item }}?limit=100"
+    headers: "{{ __orchestrator_cve_headers }}"
+    ca_path: "{{ __orchestrator_cve_ca_file.path }}"
+    validate_certs: "{{ automation_orchestrator_cve_remediation_validate_certs | bool }}"
+  loop: [projects, integrations, credentials]
+  loop_control:
+    loop_var: __orchestrator_cve_lookup_item
+  register: __orchestrator_cve_lookups
+
+- name: Lookups | Pick the project and integrations
+  ansible.builtin.set_fact:
+    __orchestrator_cve_project: >-
+      {{ (__orchestrator_cve_lookups.results[0].json.resources
+          | selectattr('name', 'equalto', automation_orchestrator_cve_remediation_project_name) | list
+          if automation_orchestrator_cve_remediation_project_name | length > 0
+          else __orchestrator_cve_lookups.results[0].json.resources | selectattr('is_default', 'equalto', true) | list)
+         | first | default({}) }}
+    __orchestrator_cve_platform: >-
+      {{ __orchestrator_cve_lookups.results[1].json.resources
+         | selectattr('integration_type', 'equalto', 'ansible_automation_platform')
+         | selectattr('name', 'equalto', automation_orchestrator_cve_remediation_platform_integration_name) | first | default({}) }}
+    __orchestrator_cve_llm: >-
+      {{ __orchestrator_cve_lookups.results[1].json.resources
+         | selectattr('integration_type', 'equalto', 'llm_provider')
+         | selectattr('name', 'equalto', automation_orchestrator_cve_remediation_llm_integration_name) | first | default({}) }}
+
+- name: Lookups | Pick the credential for launching AAP jobs
+  ansible.builtin.set_fact:
+    __orchestrator_cve_platform_credential_id: >-
+      {{ (__orchestrator_cve_lookups.results[2].json.resources
+          | selectattr('name', 'equalto', automation_orchestrator_cve_remediation_platform_credential_name)
+          | map(attribute='id') | first | default(''))
+         if automation_orchestrator_cve_remediation_platform_credential_name | length > 0
+         else __orchestrator_cve_platform.management_credential_id | default('', true) }}
+
+- name: Lookups | Check the project, integrations and credential exist
+  ansible.builtin.assert:
+    that:
+      - __orchestrator_cve_project | length > 0
+      - __orchestrator_cve_platform | length > 0
+      - __orchestrator_cve_llm | length > 0
+      - __orchestrator_cve_platform_credential_id | length > 0
+    fail_msg: >-
+      Missing in Automation Orchestrator: project '{{ automation_orchestrator_cve_remediation_project_name or 'default' }}'
+      ({{ 'found' if __orchestrator_cve_project else 'missing' }}), Ansible Automation Platform integration
+      '{{ automation_orchestrator_cve_remediation_platform_integration_name }}'
+      ({{ 'found' if __orchestrator_cve_platform else 'missing' }}), LLM provider integration
+      '{{ automation_orchestrator_cve_remediation_llm_integration_name }}' ({{ 'found' if __orchestrator_cve_llm else 'missing' }}),
+      credential for launching jobs ({{ 'found' if __orchestrator_cve_platform_credential_id else 'missing' }}).
+      Run the automation_orchestrator_configuration and automation_orchestrator_llm_integration roles first.
+    quiet: true
+
+- name: Lookups | List the LLM provider's models
+  ansible.builtin.uri:
+    url: "{{ __orchestrator_cve_url }}/api/v1/integrations/{{ __orchestrator_cve_llm.id }}/models?limit=100"
+    headers: "{{ __orchestrator_cve_headers }}"
+    ca_path: "{{ __orchestrator_cve_ca_file.path }}"
+    validate_certs: "{{ automation_orchestrator_cve_remediation_validate_certs | bool }}"
+  register: __orchestrator_cve_models
+
+- name: Lookups | Pick the model (requested, else default, else first enabled)
+  ansible.builtin.set_fact:
+    __orchestrator_cve_model: >-
+      {{ (__orchestrator_cve_enabled | selectattr('model_id', 'equalto', automation_orchestrator_cve_remediation_llm_model) | list
+          if automation_orchestrator_cve_remediation_llm_model | length > 0
+          else (__orchestrator_cve_enabled | selectattr('is_default') | list or __orchestrator_cve_enabled))
+         | first | default({}) }}
+  vars:
+    __orchestrator_cve_enabled: "{{ __orchestrator_cve_models.json.resources | selectattr('enabled') | list }}"
+
+- name: Lookups | Check the model is enabled
+  ansible.builtin.assert:
+    that: __orchestrator_cve_model | length > 0
+    fail_msg: >-
+      No enabled model '{{ automation_orchestrator_cve_remediation_llm_model or '(default)' }}' in integration
+      '{{ automation_orchestrator_cve_remediation_llm_integration_name }}'. Enabled:
+      {{ __orchestrator_cve_models.json.resources | selectattr('enabled') | map(attribute='model_id') | list }}
+    quiet: true
+...

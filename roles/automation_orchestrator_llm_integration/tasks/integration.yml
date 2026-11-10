@@ -1,0 +1,166 @@
+---
+# OpenAPI: POST /api/v1/integrations/discover (IntegrationTestConnection -> DiscoverResult) tests the connection and
+# lists models; POST /api/v1/integrations (IntegrationCreate, configuration = LLMProviderConfiguration, initial
+# discovered_models selection); PATCH /api/v1/integrations/{id} (IntegrationUpdate); POST .../{id}/validate.
+- name: Integration | Build the desired configuration
+  ansible.builtin.set_fact:
+    __orchestrator_llm_configuration: >-
+      {{ {'integration_type': 'llm_provider',
+          'provider_hint': automation_orchestrator_llm_integration_provider,
+          'allow_http': automation_orchestrator_llm_integration_allow_http | bool,
+          'insecure_skip_tls_verify': not (automation_orchestrator_llm_integration_provider_validate_certs | bool)}
+         | combine({'base_url': automation_orchestrator_llm_integration_base_url | regex_replace('/+$', '')}
+                   if automation_orchestrator_llm_integration_base_url | length > 0 else {})
+         | combine({'ca_certificate': automation_orchestrator_llm_integration_provider_ca_certificate | trim}
+                   if automation_orchestrator_llm_integration_provider_ca_certificate | trim | length > 0 else {}) }}
+
+- name: Integration | Test the connection and discover models
+  ansible.builtin.uri:
+    url: "{{ __orchestrator_llm_url }}/api/v1/integrations/discover"
+    method: POST
+    headers: "{{ __orchestrator_llm_headers }}"
+    body_format: json
+    body:
+      integration_type: llm_provider
+      configuration: "{{ __orchestrator_llm_configuration }}"
+      credential_id: "{{ __orchestrator_llm_credential_id }}"
+    ca_path: "{{ __orchestrator_llm_ca_file.path }}"
+    validate_certs: "{{ automation_orchestrator_llm_integration_validate_certs | bool }}"
+  register: __orchestrator_llm_discover
+  failed_when: not (__orchestrator_llm_discover.json.success | default(false))
+
+- name: Integration | Check the requested models were discovered
+  ansible.builtin.assert:
+    that:
+      - __orchestrator_llm_discovered_ids | length > 0
+      - __orchestrator_llm_enabled_models | difference(__orchestrator_llm_discovered_ids) | length == 0
+      - >-
+        automation_orchestrator_llm_integration_default_model | length == 0
+        or automation_orchestrator_llm_integration_default_model in __orchestrator_llm_discovered_ids
+      - >-
+        automation_orchestrator_llm_integration_default_model | length == 0 or __orchestrator_llm_enabled_models | length == 0
+        or automation_orchestrator_llm_integration_default_model in __orchestrator_llm_enabled_models
+    fail_msg: >-
+      The provider offers {{ __orchestrator_llm_discovered_ids }}. Requested models must be among them, and the default
+      model must also be enabled.
+    quiet: true
+  vars:
+    __orchestrator_llm_discovered_ids: "{{ __orchestrator_llm_discover.json.discovered_models | default([], true) | map(attribute='id') | list }}"
+
+- name: Integration | List integrations
+  ansible.builtin.uri:
+    url: "{{ __orchestrator_llm_url }}/api/v1/integrations?limit=100"
+    headers: "{{ __orchestrator_llm_headers }}"
+    ca_path: "{{ __orchestrator_llm_ca_file.path }}"
+    validate_certs: "{{ automation_orchestrator_llm_integration_validate_certs | bool }}"
+  register: __orchestrator_llm_integrations
+
+- name: Integration | Build the initial model selection (used only when creating)
+  ansible.builtin.set_fact:
+    __orchestrator_llm_initial_models: >-
+      {{ __orchestrator_llm_initial_models | default([])
+         + [{'model_id': __orchestrator_llm_model_item.id,
+             'name': __orchestrator_llm_model_item.name,
+             'description': __orchestrator_llm_model_item.description | default('', true),
+             'enabled': __orchestrator_llm_enabled_models | length == 0
+                        or __orchestrator_llm_model_item.id in __orchestrator_llm_enabled_models,
+             'is_default': __orchestrator_llm_model_item.id == automation_orchestrator_llm_integration_default_model}] }}
+  loop: "{{ __orchestrator_llm_discover.json.discovered_models }}"
+  loop_control:
+    loop_var: __orchestrator_llm_model_item
+    label: "{{ __orchestrator_llm_model_item.id }}"
+
+- name: Integration | Find an existing integration
+  ansible.builtin.set_fact:
+    __orchestrator_llm_existing: >-
+      {{ __orchestrator_llm_integrations.json.resources
+         | selectattr('name', 'equalto', automation_orchestrator_llm_integration_name)
+         | first | default({}) }}
+    __orchestrator_llm_description: >-
+      {{ automation_orchestrator_llm_integration_description | default('', true)
+         or (automation_orchestrator_llm_integration_provider ~ ' LLM provider'
+             ~ ((' at ' ~ automation_orchestrator_llm_integration_base_url) if automation_orchestrator_llm_integration_base_url | length > 0 else '')) }}
+
+- name: Integration | Fail if the name belongs to a different integration type
+  ansible.builtin.fail:
+    msg: >-
+      Integration '{{ automation_orchestrator_llm_integration_name }}' already exists with type
+      {{ __orchestrator_llm_existing.integration_type }}; choose another name.
+  when: __orchestrator_llm_existing | length > 0 and __orchestrator_llm_existing.integration_type != 'llm_provider'
+
+- name: Integration | Create the integration
+  ansible.builtin.uri:
+    url: "{{ __orchestrator_llm_url }}/api/v1/integrations"
+    method: POST
+    headers: "{{ __orchestrator_llm_headers }}"
+    body_format: json
+    body:
+      name: "{{ automation_orchestrator_llm_integration_name }}"
+      description: "{{ __orchestrator_llm_description }}"
+      integration_type: llm_provider
+      configuration: "{{ __orchestrator_llm_configuration }}"
+      management_credential_id: "{{ __orchestrator_llm_credential_id }}"
+      enabled: true
+      scope: "{{ automation_orchestrator_llm_integration_scope }}"
+      discovered_models: "{{ __orchestrator_llm_initial_models }}"
+    ca_path: "{{ __orchestrator_llm_ca_file.path }}"
+    validate_certs: "{{ automation_orchestrator_llm_integration_validate_certs | bool }}"
+    status_code: 201
+  register: __orchestrator_llm_create
+  when: __orchestrator_llm_existing | length == 0
+  changed_when: true
+
+- name: Integration | Update the integration if it drifted
+  ansible.builtin.uri:
+    url: "{{ __orchestrator_llm_url }}/api/v1/integrations/{{ __orchestrator_llm_existing.id }}"
+    method: PATCH
+    headers: "{{ __orchestrator_llm_headers }}"
+    body_format: json
+    body:
+      description: "{{ __orchestrator_llm_description }}"
+      configuration: "{{ __orchestrator_llm_configuration }}"
+      management_credential_id: "{{ __orchestrator_llm_credential_id }}"
+      enabled: true
+      scope: "{{ automation_orchestrator_llm_integration_scope }}"
+    ca_path: "{{ __orchestrator_llm_ca_file.path }}"
+    validate_certs: "{{ automation_orchestrator_llm_integration_validate_certs | bool }}"
+  when:
+    - __orchestrator_llm_existing | length > 0
+    - >-
+      __orchestrator_llm_existing.configuration.provider_hint | default('') != __orchestrator_llm_configuration.provider_hint or
+      (__orchestrator_llm_existing.configuration.base_url | default('', true) | regex_replace('/+$', ''))
+        != (__orchestrator_llm_configuration.base_url | default('', true)) or
+      (__orchestrator_llm_existing.configuration.allow_http | default(false)) != __orchestrator_llm_configuration.allow_http or
+      (__orchestrator_llm_existing.configuration.insecure_skip_tls_verify | default(false))
+        != __orchestrator_llm_configuration.insecure_skip_tls_verify or
+      (__orchestrator_llm_existing.configuration.ca_certificate | default('', true) | trim)
+        != (__orchestrator_llm_configuration.ca_certificate | default('', true)) or
+      __orchestrator_llm_existing.management_credential_id != __orchestrator_llm_credential_id or
+      __orchestrator_llm_existing.scope != automation_orchestrator_llm_integration_scope or
+      (__orchestrator_llm_existing.description | default('', true)) != __orchestrator_llm_description or
+      not __orchestrator_llm_existing.enabled
+  changed_when: true
+
+- name: Integration | Remember the integration id
+  ansible.builtin.set_fact:
+    __orchestrator_llm_id: >-
+      {{ __orchestrator_llm_existing.id if __orchestrator_llm_existing | length > 0 else __orchestrator_llm_create.json.id }}
+
+- name: Integration | Validate the connection
+  ansible.builtin.uri:
+    url: "{{ __orchestrator_llm_url }}/api/v1/integrations/{{ __orchestrator_llm_id }}/validate"
+    method: POST
+    headers: "{{ __orchestrator_llm_headers }}"
+    body_format: json
+    body: {}
+    ca_path: "{{ __orchestrator_llm_ca_file.path }}"
+    validate_certs: "{{ automation_orchestrator_llm_integration_validate_certs | bool }}"
+  register: __orchestrator_llm_validate
+  failed_when: not (__orchestrator_llm_validate.json.success | default(false))
+
+- name: Integration | Record status
+  ansible.builtin.set_fact:
+    __orchestrator_llm_status: >-
+      {{ 'created' if __orchestrator_llm_create is changed else 'present' }},
+      validated ({{ __orchestrator_llm_validate.json.checked_at }})
+...

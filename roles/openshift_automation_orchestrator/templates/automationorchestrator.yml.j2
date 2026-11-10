@@ -1,0 +1,32 @@
+---
+apiVersion: aap.ansible.com/v1alpha1
+kind: AutomationOrchestrator
+metadata:
+  name: {{ openshift_automation_orchestrator_name }}
+  namespace: {{ openshift_automation_orchestrator_namespace }}
+spec:
+  ingress:
+    type: {{ openshift_automation_orchestrator_ingress_type }}
+{% if openshift_automation_orchestrator_ingress_host | length > 0 %}
+    host: {{ openshift_automation_orchestrator_ingress_host }}
+{% endif %}
+  postgres:
+    host: {{ openshift_automation_orchestrator_postgres_service }}.{{ openshift_automation_orchestrator_namespace }}.svc
+    port: 5432
+    sslMode: {{ openshift_automation_orchestrator_postgres_ssl_mode }}
+    backendDatabase:
+      secretRef: {name: ao-backend-db}
+    temporalDatabase:
+      secretRef: {name: ao-temporal-db}
+  secrets:
+    initialAdminPasswordSecretRef: {name: ao-admin-password}
+  backgroundWorker:
+    hpa:
+      minReplicas: {{ openshift_automation_orchestrator_background_worker_min }}
+      maxReplicas: {{ openshift_automation_orchestrator_background_worker_max }}
+{% if __orchestrator_install_allowed_hosts | length > 0 %}
+  workflowHttpRequestAllowedHosts:
+{% for h in __orchestrator_install_allowed_hosts %}
+    - {{ h }}
+{% endfor %}
+{% endif %}

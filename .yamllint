@@ -1,0 +1,15 @@
+---
+extends: default
+rules:
+  line-length: {max: 160}
+  truthy: {allowed-values: ['true', 'false']}
+  comments: {min-spaces-from-content: 1}
+  document-start: enable
+  braces: {max-spaces-inside: 1}
+ignore: |
+  collections/
+  exports/
+  .ansible/
+  .venv/
+  roles/*/templates/
+...

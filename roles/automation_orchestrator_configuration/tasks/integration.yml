@@ -1,0 +1,170 @@
+---
+# Credential: documented Automation Orchestrator (AO) API (develop guide, "Credential API endpoints"):
+#   POST/PATCH /api/v1/credentials with name, credential_type_id, project_id, inputs; PATCH keeps secrets sent as
+#   "$encrypted$".
+# Integration: the configure guide describes the UI wizard ("Configure an Ansible Automation Platform integration");
+#   the request shape is in the OpenAPI specification AO serves at /api_docs/v1/openapi.json (develop guide, "Access
+#   and use the OpenAPI specification"): IntegrationCreate with an AAPConfiguration {integration_type, base_url,
+#   ca_certificate, allow_http, insecure_skip_tls_verify}; POST /integrations/{id}/validate tests it.
+
+- name: Integration | Look up credential types and projects
+  ansible.builtin.uri:
+    url: "{{ __orchestrator_url }}/api/v1/{{ __orchestrator_lookup_item }}"
+    headers: "{{ __orchestrator_headers }}"
+    ca_path: "{{ __orchestrator_ca_file.path }}"
+    validate_certs: "{{ automation_orchestrator_configuration_validate_certs | bool }}"
+  loop: [credential_types, projects]
+  loop_control:
+    loop_var: __orchestrator_lookup_item
+  register: __orchestrator_lookups
+
+- name: Integration | Pick the Ansible Automation Platform credential type and the default project
+  ansible.builtin.set_fact:
+    __orchestrator_credential_type_id: >-
+      {{ (__orchestrator_lookups.results[0].json.resources | selectattr('name', 'equalto', 'Ansible Automation Platform') | first).id }}
+    __orchestrator_project_id: >-
+      {{ (__orchestrator_lookups.results[1].json.resources | selectattr('is_default', 'equalto', true) | first).id }}
+
+- name: Integration | List Ansible Automation Platform credentials
+  ansible.builtin.uri:
+    url: "{{ __orchestrator_url }}/api/v1/credentials?credential_type_id={{ __orchestrator_credential_type_id }}&limit=100"
+    headers: "{{ __orchestrator_headers }}"
+    ca_path: "{{ __orchestrator_ca_file.path }}"
+    validate_certs: "{{ automation_orchestrator_configuration_validate_certs | bool }}"
+  register: __orchestrator_credentials
+
+- name: Integration | Build credential inputs
+  ansible.builtin.set_fact:
+    __orchestrator_existing_credential: >-
+      {{ __orchestrator_credentials.json.resources
+         | selectattr('name', 'equalto', automation_orchestrator_configuration_integration_credential_name)
+         | first | default({}) }}
+    __orchestrator_credential_inputs: >-
+      {{ {'oauth_token': automation_orchestrator_configuration_integration_token}
+         if automation_orchestrator_configuration_integration_token | length > 0
+         else {'username': automation_orchestrator_configuration_integration_username,
+               'password': automation_orchestrator_configuration_integration_password} }}
+  no_log: true
+
+- name: Integration | Create the Ansible Automation Platform credential
+  ansible.builtin.uri:
+    url: "{{ __orchestrator_url }}/api/v1/credentials"
+    method: POST
+    headers: "{{ __orchestrator_headers }}"
+    body_format: json
+    body:
+      name: "{{ automation_orchestrator_configuration_integration_credential_name }}"
+      description: Management credential for the {{ automation_orchestrator_configuration_integration_name }} integration
+      credential_type_id: "{{ __orchestrator_credential_type_id }}"
+      project_id: "{{ __orchestrator_project_id }}"
+      inputs: "{{ __orchestrator_credential_inputs }}"
+    ca_path: "{{ __orchestrator_ca_file.path }}"
+    validate_certs: "{{ automation_orchestrator_configuration_validate_certs | bool }}"
+    status_code: 201
+  register: __orchestrator_credential_create
+  when: __orchestrator_existing_credential | length == 0
+  changed_when: true
+  no_log: true
+
+- name: Integration | Update the Ansible Automation Platform credential secret
+  ansible.builtin.uri:
+    url: "{{ __orchestrator_url }}/api/v1/credentials/{{ __orchestrator_existing_credential.id }}"
+    method: PATCH
+    headers: "{{ __orchestrator_headers }}"
+    body_format: json
+    body:
+      inputs: "{{ __orchestrator_credential_inputs }}"
+    ca_path: "{{ __orchestrator_ca_file.path }}"
+    validate_certs: "{{ automation_orchestrator_configuration_validate_certs | bool }}"
+  when: __orchestrator_existing_credential | length > 0 and automation_orchestrator_configuration_update_credential | bool
+  changed_when: false     # the API can't tell us whether a secret actually changed
+  no_log: true
+
+- name: Integration | Remember the credential id
+  ansible.builtin.set_fact:
+    __orchestrator_credential_id: >-
+      {{ __orchestrator_existing_credential.id if __orchestrator_existing_credential | length > 0
+         else __orchestrator_credential_create.json.id }}
+
+- name: Integration | List integrations
+  ansible.builtin.uri:
+    url: "{{ __orchestrator_url }}/api/v1/integrations?limit=100"
+    headers: "{{ __orchestrator_headers }}"
+    ca_path: "{{ __orchestrator_ca_file.path }}"
+    validate_certs: "{{ automation_orchestrator_configuration_validate_certs | bool }}"
+  register: __orchestrator_integrations
+
+- name: Integration | Build the desired integration
+  ansible.builtin.set_fact:
+    __orchestrator_existing_integration: >-
+      {{ __orchestrator_integrations.json.resources
+         | selectattr('name', 'equalto', automation_orchestrator_configuration_integration_name)
+         | first | default({}) }}
+    __orchestrator_integration_body:
+      name: "{{ automation_orchestrator_configuration_integration_name }}"
+      description: >-
+        {{ automation_orchestrator_configuration_integration_description | default('', true)
+           or ('Ansible Automation Platform at ' ~ __orchestrator_platform_url) }}
+      integration_type: ansible_automation_platform
+      scope: global
+      enabled: true
+      management_credential_id: "{{ __orchestrator_credential_id }}"
+      configuration:
+        integration_type: ansible_automation_platform
+        base_url: "{{ __orchestrator_platform_url }}"
+        ca_certificate: "{{ __orchestrator_ca }}"
+        allow_http: "{{ __orchestrator_platform_url is match('http://') }}"
+        insecure_skip_tls_verify: "{{ not (automation_orchestrator_configuration_integration_validate_certs | bool) }}"
+
+- name: Integration | Create the integration
+  ansible.builtin.uri:
+    url: "{{ __orchestrator_url }}/api/v1/integrations"
+    method: POST
+    headers: "{{ __orchestrator_headers }}"
+    body_format: json
+    body: "{{ __orchestrator_integration_body }}"
+    ca_path: "{{ __orchestrator_ca_file.path }}"
+    validate_certs: "{{ automation_orchestrator_configuration_validate_certs | bool }}"
+    status_code: 201
+  register: __orchestrator_integration_create
+  when: __orchestrator_existing_integration | length == 0
+  changed_when: true
+
+- name: Integration | Update the integration if it drifted
+  ansible.builtin.uri:
+    url: "{{ __orchestrator_url }}/api/v1/integrations/{{ __orchestrator_existing_integration.id }}"
+    method: PATCH
+    headers: "{{ __orchestrator_headers }}"
+    body_format: json
+    body: "{{ __orchestrator_integration_body | dict2items | rejectattr('key', 'in', ['name', 'integration_type']) | items2dict }}"
+    ca_path: "{{ __orchestrator_ca_file.path }}"
+    validate_certs: "{{ automation_orchestrator_configuration_validate_certs | bool }}"
+  when:
+    - __orchestrator_existing_integration | length > 0
+    - >-
+      __orchestrator_existing_integration.configuration.base_url != __orchestrator_integration_body.configuration.base_url or
+      __orchestrator_existing_integration.configuration.ca_certificate | default('') | trim != __orchestrator_ca | trim or
+      (__orchestrator_existing_integration.configuration.insecure_skip_tls_verify | default(false))
+        != __orchestrator_integration_body.configuration.insecure_skip_tls_verify or
+      __orchestrator_existing_integration.management_credential_id != __orchestrator_credential_id or
+      __orchestrator_existing_integration.scope != 'global' or not __orchestrator_existing_integration.enabled
+  changed_when: true
+
+- name: Integration | Validate the connection
+  ansible.builtin.uri:
+    url: >-
+      {{ __orchestrator_url }}/api/v1/integrations/{{
+         __orchestrator_existing_integration.id | default(__orchestrator_integration_create.json.id) }}/validate
+    method: POST
+    headers: "{{ __orchestrator_headers }}"
+    body_format: json
+    body: {}
+    ca_path: "{{ __orchestrator_ca_file.path }}"
+    validate_certs: "{{ automation_orchestrator_configuration_validate_certs | bool }}"
+  register: __orchestrator_validate
+  failed_when: not (__orchestrator_validate.json.success | default(false))
+
+- name: Integration | Record status
+  ansible.builtin.set_fact:
+    __orchestrator_integration_status: "validated ({{ __orchestrator_validate.json.checked_at }})"
+...

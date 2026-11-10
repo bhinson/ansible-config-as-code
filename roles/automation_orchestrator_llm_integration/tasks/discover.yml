@@ -1,0 +1,76 @@
+---
+- name: Discover | Read the OpenShift ingress certificate authority
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: ConfigMap
+    namespace: openshift-config-managed
+    name: default-ingress-cert
+  register: __orchestrator_llm_ingress_ca
+  when: automation_orchestrator_llm_integration_orchestrator_ca_certificate | length == 0
+
+- name: Discover | Create a temporary certificate authority file for API calls
+  ansible.builtin.tempfile:
+    state: file
+    suffix: .pem
+  register: __orchestrator_llm_ca_file
+
+- name: Discover | Write the certificate authority file
+  ansible.builtin.copy:
+    content: >-
+      {{ automation_orchestrator_llm_integration_orchestrator_ca_certificate
+         if automation_orchestrator_llm_integration_orchestrator_ca_certificate | length > 0
+         else __orchestrator_llm_ingress_ca.resources[0].data['ca-bundle.crt'] }}
+    dest: "{{ __orchestrator_llm_ca_file.path }}"
+    mode: "0600"
+
+- name: Discover | Find the Automation Orchestrator route
+  kubernetes.core.k8s_info:
+    api_version: route.openshift.io/v1
+    kind: Route
+    namespace: "{{ automation_orchestrator_llm_integration_namespace }}"
+  register: __orchestrator_llm_routes
+  when: automation_orchestrator_llm_integration_orchestrator_url | length == 0
+
+- name: Discover | Read the Automation Orchestrator admin password secret
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Secret
+    namespace: "{{ automation_orchestrator_llm_integration_namespace }}"
+    name: "{{ automation_orchestrator_llm_integration_admin_password_secret }}"
+  register: __orchestrator_llm_admin_secret
+  when: automation_orchestrator_llm_integration_admin_password | length == 0
+  no_log: true
+
+- name: Discover | Resolve the URL, password and model selection
+  ansible.builtin.set_fact:
+    __orchestrator_llm_url: >-
+      {{ (automation_orchestrator_llm_integration_orchestrator_url
+          if automation_orchestrator_llm_integration_orchestrator_url | length > 0
+          else 'https://' ~ (__orchestrator_llm_routes.resources | map(attribute='spec.host') | first)) | regex_replace('/+$', '') }}
+    __orchestrator_llm_admin_password: >-
+      {{ automation_orchestrator_llm_integration_admin_password
+         if automation_orchestrator_llm_integration_admin_password | length > 0
+         else (__orchestrator_llm_admin_secret.resources[0].data.password | b64decode) }}
+    __orchestrator_llm_enabled_models: >-
+      {{ (automation_orchestrator_llm_integration_enabled_models.split(',')
+          if automation_orchestrator_llm_integration_enabled_models is string
+          else automation_orchestrator_llm_integration_enabled_models) | map('trim') | select | list }}
+  no_log: true
+
+- name: Discover | Check required inputs
+  ansible.builtin.assert:
+    that:
+      - __orchestrator_llm_url is match('https://.+')
+      - automation_orchestrator_llm_integration_provider in ['red_hat_ai', 'openai', 'anthropic', 'gemini', 'custom']
+      - >-
+        automation_orchestrator_llm_integration_provider not in ['red_hat_ai', 'custom']
+        or automation_orchestrator_llm_integration_base_url is match('https?://.+')
+      - automation_orchestrator_llm_integration_base_url is not match('http://') or automation_orchestrator_llm_integration_allow_http | bool
+      - automation_orchestrator_llm_integration_api_key | length > 0
+      - automation_orchestrator_llm_integration_scope in ['global', 'project']
+    fail_msg: >-
+      Need: the Automation Orchestrator route (or automation_orchestrator_llm_integration_orchestrator_url), a provider of
+      red_hat_ai, openai, anthropic, gemini or custom, a base URL (required for red_hat_ai and custom; http:// only with
+      allow_http), an API key, and a scope of global or project.
+    quiet: true
+...

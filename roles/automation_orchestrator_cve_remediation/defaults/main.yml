@@ -1,0 +1,59 @@
+---
+# automation_orchestrator_cve_remediation: add a CVE remediation workflow to a configured Automation Orchestrator (AO).
+# Assumes AO already has an Ansible Automation Platform (AAP) integration (automation_orchestrator_configuration) and a
+# large language model (LLM) provider integration (automation_orchestrator_llm_integration), and that AAP has the two
+# job templates below (configs/automation_platform/job_templates.yml).
+# Workflow: manual start form (CVE ID, optional host limit) -> Red Hat CVE lookup -> assess hosts (job template) ->
+# LLM triage -> route -> human approval -> apply the fix from Satellite (job template) -> LLM report.
+
+# --- where AO runs ---
+automation_orchestrator_cve_remediation_namespace: automation-orchestrator
+# Empty = https://<host of the AO Route in the namespace>
+automation_orchestrator_cve_remediation_orchestrator_url: ""
+automation_orchestrator_cve_remediation_admin_username: admin
+# Empty = read from the Secret below
+automation_orchestrator_cve_remediation_admin_password: ""
+automation_orchestrator_cve_remediation_admin_password_secret: ao-admin-password
+# PEM bundle used by this job to verify the AO route; empty = OpenShift ingress certificate authority (CA)
+automation_orchestrator_cve_remediation_orchestrator_ca_certificate: ""
+# Verify TLS certificates on this job's calls to the cluster API and AO
+automation_orchestrator_cve_remediation_validate_certs: true
+
+# --- the workflow ---
+automation_orchestrator_cve_remediation_workflow_name: CVE remediation
+automation_orchestrator_cve_remediation_workflow_description: >-
+  Look up a CVE in the Red Hat security data API, assess the hosts, let the LLM decide which hosts are vulnerable and
+  fixable from Satellite, ask for approval, then install the minimal fix and report.
+# AO project that owns the workflow; empty = the default project
+automation_orchestrator_cve_remediation_project_name: ""
+# Publish the new version after saving it
+automation_orchestrator_cve_remediation_publish: true
+
+# --- integrations (by name) ---
+automation_orchestrator_cve_remediation_platform_integration_name: Ansible Automation Platform
+# AO credential for launching AAP jobs; empty = the AAP integration's management credential
+automation_orchestrator_cve_remediation_platform_credential_name: ""
+automation_orchestrator_cve_remediation_llm_integration_name: LLM provider
+# Provider model ID; empty = the integration's default model, else its first enabled model
+automation_orchestrator_cve_remediation_llm_model: ""
+
+# --- AAP job templates the workflow launches ---
+automation_orchestrator_cve_remediation_organization_name: Default
+automation_orchestrator_cve_remediation_assess_job_template: CVE remediation | Assess hosts
+automation_orchestrator_cve_remediation_apply_job_template: CVE remediation | Apply fix
+# Reboot hosts after the fix only when dnf needs-restarting says so
+automation_orchestrator_cve_remediation_reboot: true
+
+# --- approval step ---
+automation_orchestrator_cve_remediation_approver_groups: [admins]
+automation_orchestrator_cve_remediation_approver_users: []
+# Seconds before the request expires (the workflow then stops without changes)
+automation_orchestrator_cve_remediation_decision_window: 86400
+
+# --- Red Hat security data API (CVE lookup step) ---
+automation_orchestrator_cve_remediation_security_data_url: https://access.redhat.com/hydra/rest/securitydata
+
+# --- waits ---
+automation_orchestrator_cve_remediation_wait_retries: 30
+automation_orchestrator_cve_remediation_wait_delay: 10
+...

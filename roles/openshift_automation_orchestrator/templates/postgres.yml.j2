@@ -1,0 +1,115 @@
+---
+# Rendered by roles/openshift_automation_orchestrator.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ao-postgres-cfg
+  namespace: {{ openshift_automation_orchestrator_namespace }}
+data:
+  ssl.conf: |
+    ssl = on
+    ssl_cert_file = '/etc/pgtls/tls.crt'
+    ssl_key_file = '/etc/pgtls/tls.key'
+    ssl_min_protocol_version = 'TLSv1.2'
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ao-postgres-init
+  namespace: {{ openshift_automation_orchestrator_namespace }}
+data:
+  # Sourced by the rhel9/postgresql image on first initialization (runs as postgres over the local socket).
+  10-temporal.sh: |
+    psql -v ON_ERROR_STOP=1 --set=tpw="$TEMPORAL_PASSWORD" <<'SQL'
+    SELECT 'CREATE ROLE temporal LOGIN CREATEDB' WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'temporal')\gexec
+    ALTER ROLE temporal WITH LOGIN CREATEDB PASSWORD :'tpw';
+    SELECT 'CREATE DATABASE temporal OWNER temporal' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'temporal')\gexec
+    -- Temporal also needs a visibility database; the operator's migration job does not create it (fails with
+    -- 'database "temporal_visibility" does not exist').
+    SELECT 'CREATE DATABASE temporal_visibility OWNER temporal' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'temporal_visibility')\gexec
+    SQL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ao-postgres
+  namespace: {{ openshift_automation_orchestrator_namespace }}
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: ao-postgres-tls
+spec:
+  selector:
+    app: ao-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ao-postgres
+  namespace: {{ openshift_automation_orchestrator_namespace }}
+spec:
+  serviceName: ao-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ao-postgres
+  template:
+    metadata:
+      labels:
+        app: ao-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: {{ openshift_automation_orchestrator_postgres_image }}
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRESQL_DATABASE
+              valueFrom: {secretKeyRef: {name: ao-backend-db, key: database}}
+            - name: POSTGRESQL_USER
+              valueFrom: {secretKeyRef: {name: ao-backend-db, key: username}}
+            - name: POSTGRESQL_PASSWORD
+              valueFrom: {secretKeyRef: {name: ao-backend-db, key: password}}
+            - name: TEMPORAL_PASSWORD
+              valueFrom: {secretKeyRef: {name: ao-temporal-db, key: password}}
+            # Each Automation Orchestrator replica opens up to poolSize+maxOverflow = 30 connections. 2 backend + 2 worker
+            # + up to 2 background workers (horizontal pod autoscaler capped in the AutomationOrchestrator resource) = 180,
+            # plus Temporal and headroom.
+            - name: POSTGRESQL_MAX_CONNECTIONS
+              value: "{{ openshift_automation_orchestrator_postgres_max_connections }}"
+          resources:
+            requests: {cpu: 100m, memory: 512Mi}
+            limits: {memory: {{ openshift_automation_orchestrator_postgres_memory_limit }}}   # ~5-10 MB per connection slot
+          readinessProbe:
+            exec: {command: ["/usr/libexec/check-container"]}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            exec: {command: ["/usr/libexec/check-container", "--live"]}
+            initialDelaySeconds: 120
+            periodSeconds: 20
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/pgsql/data}
+            - {name: cfg, mountPath: /opt/app-root/src/postgresql-cfg}
+            - {name: init, mountPath: /opt/app-root/src/postgresql-init}
+            - {name: tls, mountPath: /etc/pgtls, readOnly: true}
+      volumes:
+        - name: cfg
+          configMap: {name: ao-postgres-cfg}
+        - name: init
+          configMap: {name: ao-postgres-init}
+        - name: tls
+          secret: {secretName: ao-postgres-tls, defaultMode: 0640}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+{% if openshift_automation_orchestrator_postgres_storage_class | length > 0 %}
+        storageClassName: {{ openshift_automation_orchestrator_postgres_storage_class }}
+{% endif %}
+        resources:
+          requests:
+            storage: {{ openshift_automation_orchestrator_postgres_size }}

@@ -1,0 +1,94 @@
+---
+# CVE remediation, step 2 (changes hosts; runs only after the workflow's approval step): apply the fix for one CVE
+# from the host's enabled repositories (Satellite for registered hosts), reboot only when needed, then re-check.
+#  - Re-checks applicability on each host first, so a host that has no fix pending is left alone even if it was
+#    passed in the limit.
+#  - dnf update-minimal --cve: installs only the advisory packages, at the lowest version that fixes the CVE.
+#  - dnf needs-restarting -r: reboots only when core libraries or the kernel changed (cve_remediation_reboot).
+# Inputs (extra vars from the Automation Orchestrator (AO) workflow): cve_id (required), cve_remediation_reboot
+# (default true). Hosts come from the job launch limit (the triage step's remediable hosts).
+# Job template: "CVE remediation | Apply fix" (ask for limit and variables on launch).
+- name: CVE remediation | Apply fix
+  hosts: all
+  gather_facts: false
+  become: true
+  vars:
+    cve_remediation_reboot: true
+    cve_remediation_reboot_timeout: 900
+  tasks:
+    - name: Apply | Check the CVE ID
+      ansible.builtin.assert:
+        that: cve_id | default('') is match('^CVE-[0-9]{4}-[0-9]{4,}$')
+        fail_msg: "cve_id must look like CVE-2024-6387 (got '{{ cve_id | default('') }}')"
+        quiet: true
+      run_once: true
+      delegate_to: localhost
+      become: false
+
+    - name: Apply | List fixes for the CVE available before the update
+      ansible.builtin.command:
+        cmd: dnf -q updateinfo list --cve {{ cve_id }}
+      register: __cve_remediation_before
+      changed_when: false
+      check_mode: false
+
+    - name: Apply | Install the minimal fix for the CVE
+      ansible.builtin.command:
+        cmd: dnf -y update-minimal --cve {{ cve_id }}
+      register: __cve_remediation_update
+      changed_when: "'Nothing to do' not in __cve_remediation_update.stdout"
+      when: __cve_remediation_before.stdout | trim | length > 0
+
+    - name: Apply | Check whether a reboot is needed
+      ansible.builtin.command:
+        cmd: dnf needs-restarting -r
+      register: __cve_remediation_restart
+      changed_when: false
+      check_mode: false
+      failed_when: __cve_remediation_restart.rc not in [0, 1]
+      when: __cve_remediation_update is changed  # noqa: no-handler (the reboot must happen before the re-check)
+
+    - name: Apply | Reboot
+      ansible.builtin.reboot:
+        reboot_timeout: "{{ cve_remediation_reboot_timeout | int }}"
+        msg: "Reboot after installing the fix for {{ cve_id }}"
+      register: __cve_remediation_reboot_result
+      when:
+        - cve_remediation_reboot | bool
+        - __cve_remediation_restart.rc | default(0) == 1
+
+    - name: Apply | List fixes for the CVE still pending after the update
+      ansible.builtin.command:
+        cmd: dnf -q updateinfo list --cve {{ cve_id }}
+      register: __cve_remediation_after
+      changed_when: false
+      check_mode: false
+
+    - name: Apply | Summarize this host
+      ansible.builtin.set_fact:
+        __cve_remediation_result:
+          fixes_before: "{{ __cve_remediation_before.stdout_lines | map('trim') | select | list }}"
+          updated: "{{ __cve_remediation_update is changed }}"
+          reboot_needed: "{{ __cve_remediation_restart.rc | default(0) == 1 }}"
+          rebooted: "{{ __cve_remediation_reboot_result.rebooted | default(false) }}"
+          fixes_still_pending: "{{ __cve_remediation_after.stdout_lines | map('trim') | select | list }}"
+
+    - name: Apply | Report to Automation Orchestrator
+      ansible.builtin.set_stats:
+        aggregate: false
+        data:
+          ao_cve_id: "{{ cve_id }}"
+          ao_results: >-
+            {{ dict(ansible_play_hosts | zip(ansible_play_hosts | map('extract', hostvars, '__cve_remediation_result'))) }}
+          ao_remediated_hosts: >-
+            {{ ansible_play_hosts | map('extract', hostvars) | selectattr('__cve_remediation_result.updated')
+               | rejectattr('__cve_remediation_result.fixes_still_pending') | map(attribute='inventory_hostname') | list }}
+          ao_still_vulnerable_hosts: >-
+            {{ ansible_play_hosts | map('extract', hostvars) | selectattr('__cve_remediation_result.fixes_still_pending')
+               | map(attribute='inventory_hostname') | list }}
+          ao_rebooted_hosts: >-
+            {{ ansible_play_hosts | map('extract', hostvars) | selectattr('__cve_remediation_result.rebooted')
+               | map(attribute='inventory_hostname') | list }}
+          ao_failed_hosts: "{{ ansible_play_hosts_all | difference(ansible_play_hosts) }}"
+      run_once: true
+...

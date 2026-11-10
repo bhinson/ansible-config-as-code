@@ -1,0 +1,33 @@
+---
+# Global configuration as code behaviour for infra.aap_configuration.dispatch.
+platform_state: present
+aap_configuration_dispatcher_exclude_roles: []
+
+# ---------------------------------------------------------------------------------------------------------------
+# SITE SETTINGS: example values (the project URL is this repo). Put your real values in a vars file OUTSIDE this repo and pass it when applying:
+#   ansible-playbook playbooks/configure_automation_platform.yml -e @/path/to/site.yml
+# Extra vars override these defaults. They feed the Ansible Automation Platform (AAP) objects in this folder
+# (project URL, job template survey defaults, inventory hosts). See README.md "Site settings" for each one.
+# ---------------------------------------------------------------------------------------------------------------
+
+# AAP organization that owns every object below (AAP's built-in "Default" works).
+site_organization: Default
+# Git URL and branch the AAP project syncs from (this repo; point it at your fork if you change the code).
+site_project_scm_url: https://github.com/bhinson/ansible-config-as-code.git
+site_project_scm_branch: main
+# Whether jobs verify the AAP gateway certificate (credential "Configuration as code - Ansible Automation Platform").
+site_automation_platform_validate_certs: true
+# Execution environment for the job templates; needs kubernetes.core and the python kubernetes library.
+site_execution_environment: Default execution environment
+# AAP gateway hostname: default for the Automation Orchestrator (AO) workflow HTTP allowlist survey question.
+site_automation_platform_gateway_host: aap.example.com
+# Name of the AO integration that launches AAP jobs (as created by automation_orchestrator_configuration).
+site_automation_orchestrator_platform_integration_name: Ansible Automation Platform
+# Existing AAP machine credential (SSH user with sudo) for the hosts in the CVE remediation inventory.
+site_machine_credential: Linux hosts
+# Hosts for the "CVE remediation - sample hosts" inventory (RHEL, registered to Satellite, reachable over SSH).
+site_cve_remediation_sample_hosts:
+  - name: rhel9.example.com
+# Storage class for the AO PostgreSQL volume (survey default); empty = cluster default. Can't change after install.
+site_automation_orchestrator_storage_class: ""
+...

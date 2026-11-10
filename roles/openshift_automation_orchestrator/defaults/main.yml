@@ -1,0 +1,48 @@
+---
+# --- operator ---
+openshift_automation_orchestrator_operator_namespace: automation-orchestrator-operator-system
+openshift_automation_orchestrator_operator_channel: stable
+openshift_automation_orchestrator_operator_approval: Automatic
+openshift_automation_orchestrator_operator_source: redhat-operators
+
+# --- instance ---
+openshift_automation_orchestrator_namespace: automation-orchestrator
+openshift_automation_orchestrator_name: orchestrator
+openshift_automation_orchestrator_ingress_type: Route
+# Internal hostnames workflow HTTP-request nodes may call (private IP addresses are blocked by default as server-side
+# request forgery protection), e.g. your Ansible Automation Platform gateway host. Integration and single sign-on
+# allowlists are handled by the automation_orchestrator_configuration role.
+openshift_automation_orchestrator_allowed_hosts: []
+# Route hostname; empty lets OpenShift generate <name>-<namespace>.<apps domain>.
+openshift_automation_orchestrator_ingress_host: ""
+# Set (e.g. from Ansible Vault) to choose the initial UI admin password; otherwise one is generated
+# once and stored in secret ao-admin-password.
+# openshift_automation_orchestrator_admin_password: "{{ vault_ao_admin_password }}"
+
+# --- background worker autoscaling (operator default max is 5) ---
+# Each replica opens up to poolSize+maxOverflow = 30 database connections; keep
+# (backend + worker + background_worker_max) * 30 + headroom below openshift_automation_orchestrator_postgres_max_connections.
+openshift_automation_orchestrator_background_worker_min: 1
+openshift_automation_orchestrator_background_worker_max: 2
+
+# --- bring-your-own PostgreSQL (deployed by this role) ---
+# Automation Orchestrator 2026.8 supports/tests PostgreSQL 15 (plan guide); don't use 16.
+openshift_automation_orchestrator_postgres_deploy: true
+openshift_automation_orchestrator_postgres_image: registry.redhat.io/rhel9/postgresql-15:latest
+# Docs: 230 for 2 backend + 2 worker + 1 background worker, +30 per extra background worker. Each slot costs
+# about 5-10 MB.
+openshift_automation_orchestrator_postgres_max_connections: 300
+openshift_automation_orchestrator_postgres_memory_limit: 3Gi
+openshift_automation_orchestrator_postgres_storage_class: ""   # empty = cluster default StorageClass
+openshift_automation_orchestrator_postgres_size: 10Gi
+openshift_automation_orchestrator_postgres_service: ao-postgres
+openshift_automation_orchestrator_postgres_ssl_mode: require
+
+# --- TLS ---
+# Verify the cluster API certificate on this role's Kubernetes calls
+openshift_automation_orchestrator_validate_certs: true
+
+# --- waits ---
+openshift_automation_orchestrator_wait_retries: 60
+openshift_automation_orchestrator_wait_delay: 20
+...

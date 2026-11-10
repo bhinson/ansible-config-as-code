@@ -1,0 +1,9 @@
+---
+# Install/reconcile Red Hat Automation Orchestrator on OpenShift.
+#   source scripts/env.sh && ansible-playbook playbooks/openshift_automation_orchestrator.yml
+- name: Automation Orchestrator on OpenShift
+  hosts: localhost
+  gather_facts: false
+  roles:
+    - role: openshift_automation_orchestrator
+...

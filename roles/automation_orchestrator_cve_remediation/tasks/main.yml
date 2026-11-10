@@ -1,0 +1,36 @@
+---
+# Uses kubernetes.core (Red Hat certified) to discover AO from the cluster, and ansible.builtin.uri for the AO REST API
+# (no certified collection covers AO). Request shapes come from the OpenAPI specification AO serves at
+# /api_docs/v1/openapi.json; step output expressions follow the AO reference guide ("Node type catalog").
+# Cluster authentication: K8S_AUTH_* environment variables (job credential).
+
+- name: Main | Add the CVE remediation workflow to Automation Orchestrator
+  module_defaults:
+    group/kubernetes.core.k8s:
+      validate_certs: "{{ automation_orchestrator_cve_remediation_validate_certs | bool }}"
+  block:
+    - name: Main | Discover Automation Orchestrator
+      ansible.builtin.include_tasks: discover.yml
+
+    - name: Main | Log in to Automation Orchestrator
+      ansible.builtin.include_tasks: login.yml
+
+    - name: Main | Look up the project, integrations, credential and model
+      ansible.builtin.include_tasks: lookups.yml
+
+    - name: Main | Validate, save and publish the workflow
+      ansible.builtin.include_tasks: workflow.yml
+
+    - name: Main | Report
+      ansible.builtin.debug:
+        msg:
+          - "Automation Orchestrator: {{ __orchestrator_cve_url }}"
+          - "Workflow '{{ automation_orchestrator_cve_remediation_workflow_name }}': {{ __orchestrator_cve_status }}"
+          - "LLM model: {{ __orchestrator_cve_model.model_id }} (integration '{{ automation_orchestrator_cve_remediation_llm_integration_name }}')"
+  always:
+    - name: Main | Remove the temporary certificate authority file
+      ansible.builtin.file:
+        path: "{{ __orchestrator_cve_ca_file.path }}"
+        state: absent
+      when: __orchestrator_cve_ca_file.path is defined
+...

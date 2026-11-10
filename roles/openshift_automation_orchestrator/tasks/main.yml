@@ -1,0 +1,79 @@
+---
+# Uses kubernetes.core (Red Hat certified). Authentication comes from K8S_AUTH_* environment variables.
+
+- name: Main | Install Automation Orchestrator
+  module_defaults:
+    group/kubernetes.core.k8s:
+      validate_certs: "{{ openshift_automation_orchestrator_validate_certs | bool }}"
+  block:
+    - name: Main | Normalize survey-style inputs (comma-separated strings -> lists)
+      ansible.builtin.set_fact:
+        __orchestrator_install_allowed_hosts: >-
+          {{ (openshift_automation_orchestrator_allowed_hosts.split(',') if openshift_automation_orchestrator_allowed_hosts is string
+              else openshift_automation_orchestrator_allowed_hosts) | map('trim') | select | list }}
+
+    - name: Main | Check database connection budget
+      ansible.builtin.assert:
+        that:
+          - >-
+            (2 + 2 + openshift_automation_orchestrator_background_worker_max | int) * 30 + 20
+            <= openshift_automation_orchestrator_postgres_max_connections | int
+        fail_msg: >-
+          2 backend + 2 worker + {{ openshift_automation_orchestrator_background_worker_max }} background workers x 30 connections (+20 headroom)
+          exceeds max_connections={{ openshift_automation_orchestrator_postgres_max_connections }}. Raise max_connections
+          (and the PostgreSQL memory limit) or lower openshift_automation_orchestrator_background_worker_max.
+        quiet: true
+      when: openshift_automation_orchestrator_postgres_deploy | bool
+
+    - name: Main | Install the operator
+      ansible.builtin.include_tasks: operator.yml
+
+    - name: Main | Create instance namespace
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: "{{ openshift_automation_orchestrator_namespace }}"
+
+    - name: Main | Create secrets (generated once, never overwritten)
+      ansible.builtin.include_tasks: credentials.yml
+
+    - name: Main | Deploy PostgreSQL
+      ansible.builtin.include_tasks: postgres.yml
+      when: openshift_automation_orchestrator_postgres_deploy | bool
+
+    - name: Main | Apply AutomationOrchestrator instance
+      kubernetes.core.k8s:
+        state: present
+        apply: true
+        template: automationorchestrator.yml.j2
+
+    - name: Main | Wait for AutomationOrchestrator Ready
+      kubernetes.core.k8s_info:
+        api_version: aap.ansible.com/v1alpha1
+        kind: AutomationOrchestrator
+        name: "{{ openshift_automation_orchestrator_name }}"
+        namespace: "{{ openshift_automation_orchestrator_namespace }}"
+      register: __orchestrator_install_instance
+      until: >-
+        __orchestrator_install_instance.resources | length > 0 and
+        (__orchestrator_install_instance.resources[0].status.conditions | default([])
+         | selectattr('type', 'equalto', 'Ready') | selectattr('status', 'equalto', 'True') | list | length > 0)
+      retries: "{{ openshift_automation_orchestrator_wait_retries }}"
+      delay: "{{ openshift_automation_orchestrator_wait_delay }}"
+
+    - name: Main | Look up the route
+      kubernetes.core.k8s_info:
+        api_version: route.openshift.io/v1
+        kind: Route
+        namespace: "{{ openshift_automation_orchestrator_namespace }}"
+      register: __orchestrator_install_routes
+
+    - name: Main | Report
+      ansible.builtin.debug:
+        msg:
+          - "Automation Orchestrator is Ready (version {{ __orchestrator_install_instance.resources[0].status.currentVersion | default('unknown') }})"
+          - "Routes: {{ __orchestrator_install_routes.resources | map(attribute='spec.host') | list }}"
+...

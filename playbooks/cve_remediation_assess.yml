@@ -1,0 +1,120 @@
+---
+# CVE remediation, step 1 (read-only): collect what each host has for one CVE and report it to Automation Orchestrator
+# (AO) with set_stats, so the workflow's large language model (LLM) triage step reasons over real data.
+#  - Red Hat security data API: the CVE's source packages (affected_release and package_state).
+#  - Each host: installed binary packages built from those source packages (rpm), fixes for the CVE available from the
+#    host's enabled repositories, i.e. Satellite for registered hosts (dnf updateinfo --cve), fixes already installed,
+#    and the registration server (rhsm.conf).
+# Inputs (extra vars from the AO workflow): cve_id (required). Limit comes from the job launch.
+# Job template: "CVE remediation | Assess hosts" (ask for limit and variables on launch).
+- name: CVE remediation | Assess hosts
+  hosts: all
+  gather_facts: true
+  gather_subset: [min]
+  become: true
+  vars:
+    cve_remediation_security_data_url: https://access.redhat.com/hydra/rest/securitydata
+    cve_remediation_validate_certs: true
+  tasks:
+    - name: Assess | Check the CVE ID
+      ansible.builtin.assert:
+        that: cve_id | default('') is match('^CVE-[0-9]{4}-[0-9]{4,}$')
+        fail_msg: "cve_id must look like CVE-2024-6387 (got '{{ cve_id | default('') }}')"
+        quiet: true
+      run_once: true
+      delegate_to: localhost
+      become: false
+
+    - name: Assess | Look up the CVE in the Red Hat security data API
+      ansible.builtin.uri:
+        url: "{{ cve_remediation_security_data_url }}/cve/{{ cve_id }}.json"
+        validate_certs: "{{ cve_remediation_validate_certs | bool }}"
+        return_content: true
+      register: __cve_remediation_record
+      check_mode: false
+      run_once: true
+      delegate_to: localhost
+      become: false
+
+    - name: Assess | Derive the CVE's source package names
+      ansible.builtin.set_fact:
+        __cve_remediation_source_packages: >-
+          {{ ((__cve_remediation_record.json.affected_release | default([], true) | map(attribute='package') | select('string')
+               | map('regex_replace', '-[0-9]+:.*$', '') | list)
+              + (__cve_remediation_record.json.package_state | default([], true) | map(attribute='package_name')
+                 | select('string') | list))
+             | reject('search', '/') | unique | sort }}
+      run_once: true
+      delegate_to: localhost
+      become: false
+
+    - name: Assess | List installed packages built from those source packages  # noqa: command-instead-of-module
+      # package_facts doesn't report each package's source RPM, which the matching below needs
+      ansible.builtin.command:
+        cmd: rpm -qa --queryformat '%{NAME}|%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}|%{SOURCERPM}\n'
+      register: __cve_remediation_rpm
+      changed_when: false
+      check_mode: false
+      when: ansible_facts.os_family == 'RedHat'
+
+    - name: Assess | List fixes for the CVE available from enabled repositories
+      ansible.builtin.command:
+        cmd: dnf -q updateinfo list --cve {{ cve_id }}
+      register: __cve_remediation_available
+      changed_when: false
+      check_mode: false
+      failed_when: __cve_remediation_available.rc != 0
+      when: ansible_facts.os_family == 'RedHat'
+
+    - name: Assess | List fixes for the CVE already installed
+      ansible.builtin.command:
+        cmd: dnf -q updateinfo list --installed --cve {{ cve_id }}
+      register: __cve_remediation_installed
+      changed_when: false
+      check_mode: false
+      failed_when: __cve_remediation_installed.rc != 0
+      when: ansible_facts.os_family == 'RedHat'
+
+    - name: Assess | Read the registration server
+      ansible.builtin.command:
+        cmd: awk -F' *= *' '/^hostname/ {print $2; exit}' /etc/rhsm/rhsm.conf
+      register: __cve_remediation_rhsm
+      changed_when: false
+      check_mode: false
+      failed_when: false
+      when: ansible_facts.os_family == 'RedHat'
+
+    - name: Assess | Summarize this host
+      ansible.builtin.set_fact:
+        __cve_remediation_host:
+          os: "{{ ansible_facts.distribution | default('unknown') }} {{ ansible_facts.distribution_version | default('') }}"
+          rhel_major: "{{ ansible_facts.distribution_major_version | default('') if ansible_facts.distribution | default('') == 'RedHat' else '' }}"
+          registered_to: "{{ __cve_remediation_rhsm.stdout | default('') | trim }}"
+          # "name epoch:version-release.arch" for binaries whose source RPM is one of the CVE's source packages
+          installed_packages: >-
+            {{ __cve_remediation_rpm.stdout_lines | default([])
+               | select('search', '\|(' ~ __cve_remediation_package_pattern ~ ')-[^|-]+-[^|-]+\.src\.rpm$')
+               | map('regex_replace', '\|[^|]*$', '') | map('replace', '|', ' ') | list }}
+          # dnf updateinfo lines: "<advisory> <severity>/Sec. <package NEVRA>"
+          fixes_available: "{{ __cve_remediation_available.stdout_lines | default([]) | map('trim') | select | list }}"
+          fixes_installed: "{{ __cve_remediation_installed.stdout_lines | default([]) | map('trim') | select | list }}"
+      vars:
+        __cve_remediation_package_pattern: >-
+          {{ __cve_remediation_source_packages | map('regex_escape') | join('|') or 'NO-SOURCE-PACKAGES' }}
+
+    - name: Assess | Report to Automation Orchestrator
+      ansible.builtin.set_stats:
+        aggregate: false
+        data:
+          ao_cve_id: "{{ cve_id }}"
+          ao_cve_severity: "{{ __cve_remediation_record.json.threat_severity | default('unknown') }}"
+          ao_cvss3_score: "{{ __cve_remediation_record.json.cvss3.cvss3_base_score | default('') }}"
+          ao_source_packages: "{{ __cve_remediation_source_packages }}"
+          ao_hosts: >-
+            {{ dict(ansible_play_hosts | zip(ansible_play_hosts | map('extract', hostvars, '__cve_remediation_host'))) }}
+          ao_unreachable_hosts: "{{ ansible_play_hosts_all | difference(ansible_play_hosts) }}"
+          ao_hosts_with_fix_available: >-
+            {{ ansible_play_hosts | map('extract', hostvars) | selectattr('__cve_remediation_host.fixes_available')
+               | map(attribute='inventory_hostname') | list }}
+      run_once: true
+...

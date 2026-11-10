@@ -1,0 +1,29 @@
+---
+- name: Operator | Create namespace, OperatorGroup (AllNamespaces) and Subscription
+  kubernetes.core.k8s:
+    state: present
+    apply: true
+    template: operator.yml.j2
+
+- name: Operator | Wait for the Subscription to report an installed ClusterServiceVersion
+  kubernetes.core.k8s_info:
+    api_version: operators.coreos.com/v1alpha1
+    kind: Subscription
+    name: automation-orchestrator-operator
+    namespace: "{{ openshift_automation_orchestrator_operator_namespace }}"
+  register: __orchestrator_install_subscription
+  until: (__orchestrator_install_subscription.resources[0].status.installedCSV | default('')) | length > 0
+  retries: "{{ openshift_automation_orchestrator_wait_retries }}"
+  delay: "{{ openshift_automation_orchestrator_wait_delay }}"
+
+- name: Operator | Wait for the ClusterServiceVersion to succeed
+  kubernetes.core.k8s_info:
+    api_version: operators.coreos.com/v1alpha1
+    kind: ClusterServiceVersion
+    name: "{{ __orchestrator_install_subscription.resources[0].status.installedCSV }}"
+    namespace: "{{ openshift_automation_orchestrator_operator_namespace }}"
+  register: __orchestrator_install_cluster_service_version
+  until: (__orchestrator_install_cluster_service_version.resources[0].status.phase | default('')) == 'Succeeded'
+  retries: "{{ openshift_automation_orchestrator_wait_retries }}"
+  delay: "{{ openshift_automation_orchestrator_wait_delay }}"
+...

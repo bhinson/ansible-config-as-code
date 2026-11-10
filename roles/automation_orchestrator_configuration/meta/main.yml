@@ -1,0 +1,11 @@
+---
+galaxy_info:
+  author: ansible-config-as-code contributors
+  description: Configure Red Hat Automation Orchestrator for Ansible Automation Platform (integration + OIDC single sign-on)
+  license: GPL-3.0-or-later
+  min_ansible_version: "2.16"
+  platforms:
+    - name: GenericLinux
+      versions: [all]
+dependencies: []
+...

@@ -1,0 +1,24 @@
+---
+controller_inventories:
+  # Localhost inventory for API-driven configuration as code jobs, sourced from this repo's inventory/hosts.yml.
+  - name: Configuration as code - localhost
+    description: Control-node-only inventory for configuration-as-code jobs
+    organization: "{{ site_organization }}"
+  # Managed hosts for the Automation Orchestrator CVE remediation workflow. A small static sample for now;
+  # replace with a dynamic inventory (site_cve_remediation_sample_hosts lists the hosts).
+  - name: CVE remediation - sample hosts
+    description: Sample RHEL hosts registered to Satellite, for the Automation Orchestrator CVE remediation workflow
+    organization: "{{ site_organization }}"
+
+controller_inventory_sources:
+  - name: Configuration as code - localhost (repo)
+    inventory: Configuration as code - localhost
+    source: scm
+    source_project: Configuration as code - ansible-config-as-code
+    source_path: inventory/hosts.yml
+    overwrite: true
+    update_on_launch: true
+
+controller_hosts: >-
+  {{ site_cve_remediation_sample_hosts | map('combine', {'inventory': 'CVE remediation - sample hosts'}) | list }}
+...

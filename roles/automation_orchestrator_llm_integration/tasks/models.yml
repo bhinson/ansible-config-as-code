@@ -1,0 +1,71 @@
+---
+# OpenAPI: GET /api/v1/integrations/{id}/models (LLMModelRead: id = AO UUID, model_id = provider ID),
+# PATCH .../models/bulk_update (LLMModelBulkUpdate: model_ids are AO UUIDs), PATCH .../models/{id} (is_default).
+# Users name models by provider ID; this file maps them to AO UUIDs.
+- name: Models | List the integration's models
+  ansible.builtin.uri:
+    url: "{{ __orchestrator_llm_url }}/api/v1/integrations/{{ __orchestrator_llm_id }}/models?limit=100"
+    headers: "{{ __orchestrator_llm_headers }}"
+    ca_path: "{{ __orchestrator_llm_ca_file.path }}"
+    validate_certs: "{{ automation_orchestrator_llm_integration_validate_certs | bool }}"
+  register: __orchestrator_llm_models
+
+- name: Models | Work out which models to change
+  ansible.builtin.set_fact:
+    __orchestrator_llm_to_enable: >-
+      {{ __orchestrator_llm_models.json.resources | rejectattr('enabled')
+         | selectattr('model_id', 'in', __orchestrator_llm_wanted) | map(attribute='id') | list }}
+    __orchestrator_llm_to_disable: >-
+      {{ __orchestrator_llm_models.json.resources | selectattr('enabled')
+         | rejectattr('model_id', 'in', __orchestrator_llm_wanted) | map(attribute='id') | list }}
+    __orchestrator_llm_default: >-
+      {{ __orchestrator_llm_models.json.resources
+         | selectattr('model_id', 'equalto', automation_orchestrator_llm_integration_default_model) | first | default({}) }}
+  vars:
+    __orchestrator_llm_wanted: >-
+      {{ __orchestrator_llm_enabled_models if __orchestrator_llm_enabled_models | length > 0
+         else __orchestrator_llm_models.json.resources | map(attribute='model_id') | list }}
+
+- name: Models | Enable or disable models
+  ansible.builtin.uri:
+    url: "{{ __orchestrator_llm_url }}/api/v1/integrations/{{ __orchestrator_llm_id }}/models/bulk_update"
+    method: PATCH
+    headers: "{{ __orchestrator_llm_headers }}"
+    body_format: json
+    body:
+      model_ids: "{{ __orchestrator_llm_bulk_item.ids }}"
+      enabled: "{{ __orchestrator_llm_bulk_item.enabled }}"
+    ca_path: "{{ __orchestrator_llm_ca_file.path }}"
+    validate_certs: "{{ automation_orchestrator_llm_integration_validate_certs | bool }}"
+  loop:
+    - {ids: "{{ __orchestrator_llm_to_enable }}", enabled: true}
+    - {ids: "{{ __orchestrator_llm_to_disable }}", enabled: false}
+  loop_control:
+    loop_var: __orchestrator_llm_bulk_item
+    label: "{{ 'enable' if __orchestrator_llm_bulk_item.enabled else 'disable' }} {{ __orchestrator_llm_bulk_item.ids | length }}"
+  when: __orchestrator_llm_bulk_item.ids | length > 0
+  changed_when: true
+
+- name: Models | Set the default model
+  ansible.builtin.uri:
+    url: "{{ __orchestrator_llm_url }}/api/v1/integrations/{{ __orchestrator_llm_id }}/models/{{ __orchestrator_llm_default.id }}"
+    method: PATCH
+    headers: "{{ __orchestrator_llm_headers }}"
+    body_format: json
+    body:
+      is_default: true
+    ca_path: "{{ __orchestrator_llm_ca_file.path }}"
+    validate_certs: "{{ automation_orchestrator_llm_integration_validate_certs | bool }}"
+  when: __orchestrator_llm_default | length > 0 and not __orchestrator_llm_default.is_default
+  changed_when: true
+
+- name: Models | Summarize
+  ansible.builtin.set_fact:
+    __orchestrator_llm_enabled_report: >-
+      {{ __orchestrator_llm_models.json.resources
+         | selectattr('model_id', 'in', (__orchestrator_llm_enabled_models
+                                         or (__orchestrator_llm_models.json.resources | map(attribute='model_id') | list)))
+         | map(attribute='model_id') | join(', ') }}{{
+         (' (default ' ~ automation_orchestrator_llm_integration_default_model ~ ')')
+         if automation_orchestrator_llm_integration_default_model | length > 0 else '' }}
+...

@@ -1,0 +1,75 @@
+---
+# automation_orchestrator_configuration: configure a running Automation Orchestrator (AO) for Ansible Automation Platform (AAP):
+#   - AO deployment environment settings the custom resource (CR) can't express (integration URL
+#     allowlist, OpenID Connect (OIDC) private networks)
+#   - AO credential + AAP integration (job dispatch)
+#   - AAP gateway OAuth2 application + AO OIDC identity provider (IdP)
+#     (single sign-on (SSO))
+# Everything is discovered from the cluster or the job's credentials when left empty, so the role works on a fresh
+# OpenShift cluster right after openshift_automation_orchestrator. Site values belong in job template surveys / inventory.
+
+# --- where AO runs (must match openshift_automation_orchestrator) ---
+automation_orchestrator_configuration_namespace: automation-orchestrator
+# AutomationOrchestrator CR name (prefix of its Deployments)
+automation_orchestrator_configuration_instance_name: orchestrator
+# Empty = https://<host of the AO Route in the namespace>
+automation_orchestrator_configuration_url: ""
+automation_orchestrator_configuration_admin_username: admin
+# Empty = read from the Secret below
+automation_orchestrator_configuration_admin_password: ""
+automation_orchestrator_configuration_admin_password_secret: ao-admin-password
+
+# --- AAP ---
+# Empty = aap_hostname (Red Hat Ansible Automation Platform credential)
+automation_orchestrator_configuration_platform_url: ""
+# Empty = aap_token (same credential); needs rights to create OAuth applications
+automation_orchestrator_configuration_platform_token: ""
+# PEM; empty = OpenShift ingress certificate authority (CA) (default-ingress-cert)
+automation_orchestrator_configuration_ca_certificate: ""
+# Verify TLS certificates on this job's calls to the cluster API, AO and AAP
+automation_orchestrator_configuration_validate_certs: true
+
+# --- features ---
+automation_orchestrator_configuration_manage_environment: true
+automation_orchestrator_configuration_configure_integration: true
+automation_orchestrator_configuration_configure_single_sign_on: true
+
+# --- deployment environment settings (AO docs: "Allow internal service URLs for integrations",
+#     OIDC variables) ---
+# The AAP host is always added
+automation_orchestrator_configuration_integration_extra_allowed_hosts: []
+# Needed when the AAP gateway resolves to a private IP address
+automation_orchestrator_configuration_oidc_allow_private_networks: true
+
+# --- AAP integration (job dispatch) ---
+automation_orchestrator_configuration_integration_name: Ansible Automation Platform
+automation_orchestrator_configuration_integration_description: ""
+automation_orchestrator_configuration_integration_credential_name: Ansible Automation Platform integration
+# AO verifies the AAP certificate (false sets insecure_skip_tls_verify on the integration; prefer a CA bundle)
+automation_orchestrator_configuration_integration_validate_certs: true
+# Management credential stored in AO (health checks/discovery). Token preferred; else username + password.
+automation_orchestrator_configuration_integration_token: ""
+automation_orchestrator_configuration_integration_username: ""
+automation_orchestrator_configuration_integration_password: ""
+# Re-apply the secret inputs on every run
+automation_orchestrator_configuration_update_credential: true
+
+# --- SSO (AO docs: "Add Ansible Automation Platform as an identity provider manually") ---
+automation_orchestrator_configuration_identity_provider_name: Ansible Automation Platform
+automation_orchestrator_configuration_oauth_app_name: Automation Orchestrator
+automation_orchestrator_configuration_oauth_app_organization: Default
+# IdPs have no CA field; the docs say to enable this for internal certificates
+automation_orchestrator_configuration_identity_provider_disable_tls_verify: false
+# AAP admins -> admins, auditors -> auditors
+automation_orchestrator_configuration_identity_provider_platform_role_mapping: true
+automation_orchestrator_configuration_identity_provider_allow_all_authenticated: false
+automation_orchestrator_configuration_identity_provider_rp_initiated_logout: true
+# The OAuth client secret is only returned when AAP creates the application. If the application
+# exists but the AO IdP doesn't use it, set this to delete and recreate the
+# application (invalidates the old client secret).
+automation_orchestrator_configuration_recreate_oauth_app: false
+
+# --- waits ---
+automation_orchestrator_configuration_wait_retries: 30
+automation_orchestrator_configuration_wait_delay: 10
+...

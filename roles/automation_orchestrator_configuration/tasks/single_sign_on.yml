@@ -1,0 +1,213 @@
+---
+# Automation Orchestrator (AO) configure guide, "Add Ansible Automation Platform as an identity provider manually":
+#   Ansible Automation Platform (AAP): OAuth2 application (authorization-code, confidential, RS256), redirect
+#     <AO URL>/api/v1/auth/oidc/callback, post-logout <AO URL>/
+#     (gateway REST API; the client secret is returned only by the create call).
+#   AO: documented /api/v1/identity_providers API (provider_type oidc, idp_type aap,
+#     issuer <AAP URL>/o/, scopes "read write openid roles"); POST /identity_providers/test
+#     before saving.
+# AO 2026.8 quirk: POST /identity_providers does not persist configuration.client_secret (single
+#   sign-on then fails with "authentication failed" / token exchange 401). We always follow a create with a PATCH
+#   carrying the full configuration plus the secret (docs: client_secret "omit on PATCH to keep existing").
+
+- name: Single sign-on | List Automation Orchestrator identity providers
+  ansible.builtin.uri:
+    url: "{{ __orchestrator_url }}/api/v1/identity_providers?limit=100"
+    headers: "{{ __orchestrator_headers }}"
+    ca_path: "{{ __orchestrator_ca_file.path }}"
+    validate_certs: "{{ automation_orchestrator_configuration_validate_certs | bool }}"
+  register: __orchestrator_identity_providers
+
+- name: Single sign-on | Find the Ansible Automation Platform OAuth application
+  ansible.builtin.uri:
+    url: "{{ __orchestrator_platform_url }}/api/gateway/v1/applications/?name={{ automation_orchestrator_configuration_oauth_app_name | urlencode }}"
+    headers:
+      Authorization: "Bearer {{ __orchestrator_platform_token }}"
+    ca_path: "{{ __orchestrator_ca_file.path }}"
+    validate_certs: "{{ automation_orchestrator_configuration_validate_certs | bool }}"
+  register: __orchestrator_apps
+
+- name: Single sign-on | Decide what to create
+  ansible.builtin.set_fact:
+    __orchestrator_existing_identity_provider: >-
+      {{ __orchestrator_identity_providers.json.resources
+         | selectattr('name', 'equalto', automation_orchestrator_configuration_identity_provider_name)
+         | first | default({}) }}
+    __orchestrator_existing_app: "{{ __orchestrator_apps.json.results | first | default({}) }}"
+
+- name: Single sign-on | Classify state
+  ansible.builtin.set_fact:
+    __orchestrator_single_sign_on_in_sync: >-
+      {{ __orchestrator_existing_identity_provider | length > 0 and __orchestrator_existing_app | length > 0 and
+         __orchestrator_existing_identity_provider.configuration.client_id == __orchestrator_existing_app.client_id and
+         not (automation_orchestrator_configuration_recreate_oauth_app | bool) }}
+    __orchestrator_need_app: "{{ __orchestrator_existing_app | length == 0 or (automation_orchestrator_configuration_recreate_oauth_app | bool) }}"
+
+- name: Single sign-on | Stop if the OAuth app exists but its client secret is unknown
+  ansible.builtin.fail:
+    msg: >-
+      Ansible Automation Platform OAuth application '{{ automation_orchestrator_configuration_oauth_app_name }}'
+      already exists but Automation Orchestrator identity provider
+      '{{ automation_orchestrator_configuration_identity_provider_name }}' doesn't use it, and Ansible Automation
+      Platform only reveals the client secret at creation. Re-run with
+      automation_orchestrator_configuration_recreate_oauth_app=true to delete and recreate the application.
+  when: not (__orchestrator_single_sign_on_in_sync | bool) and not (__orchestrator_need_app | bool)
+
+- name: Single sign-on | Delete the existing OAuth application (recreate requested)
+  ansible.builtin.uri:
+    url: "{{ __orchestrator_platform_url }}/api/gateway/v1/applications/{{ __orchestrator_existing_app.id }}/"
+    method: DELETE
+    headers:
+      Authorization: "Bearer {{ __orchestrator_platform_token }}"
+    ca_path: "{{ __orchestrator_ca_file.path }}"
+    validate_certs: "{{ automation_orchestrator_configuration_validate_certs | bool }}"
+    status_code: 204
+  when: (automation_orchestrator_configuration_recreate_oauth_app | bool) and __orchestrator_existing_app | length > 0
+  changed_when: true
+
+- name: Single sign-on | Create the OAuth application
+  when: __orchestrator_need_app | bool
+  block:
+    - name: Single sign-on | Look up the Ansible Automation Platform organization
+      ansible.builtin.uri:
+        url: >-
+          {{ __orchestrator_platform_url }}/api/gateway/v1/organizations/?name={{
+             automation_orchestrator_configuration_oauth_app_organization | urlencode }}
+        headers:
+          Authorization: "Bearer {{ __orchestrator_platform_token }}"
+        ca_path: "{{ __orchestrator_ca_file.path }}"
+        validate_certs: "{{ automation_orchestrator_configuration_validate_certs | bool }}"
+      register: __orchestrator_organization
+      failed_when: __orchestrator_organization.json.count | default(0) != 1
+
+    - name: Single sign-on | Create the OAuth application in Ansible Automation Platform
+      ansible.builtin.uri:
+        url: "{{ __orchestrator_platform_url }}/api/gateway/v1/applications/"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ __orchestrator_platform_token }}"
+        body_format: json
+        body:
+          name: "{{ automation_orchestrator_configuration_oauth_app_name }}"
+          description: "OpenID Connect login for Automation Orchestrator ({{ __orchestrator_url }})"
+          organization: "{{ __orchestrator_organization.json.results[0].id }}"
+          client_type: confidential
+          authorization_grant_type: authorization-code
+          algorithm: RS256
+          redirect_uris: "{{ __orchestrator_url }}/api/v1/auth/oidc/callback"
+          post_logout_redirect_uris: "{{ __orchestrator_url }}/"
+        ca_path: "{{ __orchestrator_ca_file.path }}"
+        validate_certs: "{{ automation_orchestrator_configuration_validate_certs | bool }}"
+        status_code: 201
+      register: __orchestrator_app_create
+      changed_when: true
+      no_log: true
+
+- name: Single sign-on | Build the desired identity provider configuration
+  ansible.builtin.set_fact:
+    __orchestrator_identity_provider_config:
+      provider_type: oidc
+      idp_type: aap
+      auto_discovery: true
+      issuer_url: "{{ __orchestrator_platform_url }}/o/"
+      client_id: "{{ __orchestrator_app_create.json.client_id if __orchestrator_need_app | bool else __orchestrator_existing_app.client_id }}"
+      redirect_uri: "{{ __orchestrator_url }}/api/v1/auth/oidc/callback"
+      scopes: read write openid roles
+      claim_mapping:
+        subject: sub
+        email: email
+        username: preferred_username
+        first_name: given_name
+        last_name: family_name
+      group_jmespath_expression: "[aap_teams[*].join('/', [organization, name]), aap_organizations[*].name] | []"
+      aap_role_mapping_enabled: "{{ automation_orchestrator_configuration_identity_provider_platform_role_mapping | bool }}"
+      allow_all_authenticated: "{{ automation_orchestrator_configuration_identity_provider_allow_all_authenticated | bool }}"
+      enable_rp_initiated_logout: "{{ automation_orchestrator_configuration_identity_provider_rp_initiated_logout | bool }}"
+      disable_tls_verify: "{{ automation_orchestrator_configuration_identity_provider_disable_tls_verify | bool }}"
+
+- name: Single sign-on | New client secret path (test, create or update, then PATCH the secret)
+  when: __orchestrator_need_app | bool
+  block:
+    - name: Single sign-on | Test the identity provider settings
+      ansible.builtin.uri:
+        url: "{{ __orchestrator_url }}/api/v1/identity_providers/test"
+        method: POST
+        headers: "{{ __orchestrator_headers }}"
+        body_format: json
+        body:
+          name: "{{ automation_orchestrator_configuration_identity_provider_name }}"
+          provider_type: oidc
+          configuration: "{{ __orchestrator_identity_provider_config | combine({'client_secret': __orchestrator_app_create.json.client_secret}) }}"
+        ca_path: "{{ __orchestrator_ca_file.path }}"
+        validate_certs: "{{ automation_orchestrator_configuration_validate_certs | bool }}"
+      register: __orchestrator_identity_provider_test
+      failed_when: not (__orchestrator_identity_provider_test.json.success | default(false))
+      no_log: true
+
+    - name: Single sign-on | Create the identity provider
+      ansible.builtin.uri:
+        url: "{{ __orchestrator_url }}/api/v1/identity_providers"
+        method: POST
+        headers: "{{ __orchestrator_headers }}"
+        body_format: json
+        body:
+          name: "{{ automation_orchestrator_configuration_identity_provider_name }}"
+          provider_type: oidc
+          configuration: "{{ __orchestrator_identity_provider_config | combine({'client_secret': __orchestrator_app_create.json.client_secret}) }}"
+        ca_path: "{{ __orchestrator_ca_file.path }}"
+        validate_certs: "{{ automation_orchestrator_configuration_validate_certs | bool }}"
+        status_code: 201
+      register: __orchestrator_identity_provider_create
+      when: __orchestrator_existing_identity_provider | length == 0
+      changed_when: true
+      no_log: true
+
+    - name: Single sign-on | Set configuration and client secret (create doesn't persist the secret)
+      ansible.builtin.uri:
+        url: >-
+          {{ __orchestrator_url }}/api/v1/identity_providers/{{
+             __orchestrator_existing_identity_provider.id | default(__orchestrator_identity_provider_create.json.id) }}
+        method: PATCH
+        headers: "{{ __orchestrator_headers }}"
+        body_format: json
+        body:
+          configuration: "{{ __orchestrator_identity_provider_config | combine({'client_secret': __orchestrator_app_create.json.client_secret}) }}"
+        ca_path: "{{ __orchestrator_ca_file.path }}"
+        validate_certs: "{{ automation_orchestrator_configuration_validate_certs | bool }}"
+      changed_when: true
+      no_log: true
+
+- name: Single sign-on | Update non-secret settings if they drifted (secret kept)
+  ansible.builtin.uri:
+    url: "{{ __orchestrator_url }}/api/v1/identity_providers/{{ __orchestrator_existing_identity_provider.id }}"
+    method: PATCH
+    headers: "{{ __orchestrator_headers }}"
+    body_format: json
+    body:
+      configuration: "{{ __orchestrator_identity_provider_config }}"
+    ca_path: "{{ __orchestrator_ca_file.path }}"
+    validate_certs: "{{ automation_orchestrator_configuration_validate_certs | bool }}"
+  when:
+    - __orchestrator_single_sign_on_in_sync | bool
+    - >-
+      __orchestrator_identity_provider_config | dict2items | rejectattr('key', 'equalto', 'claim_mapping') | items2dict !=
+      (__orchestrator_existing_identity_provider.configuration | dict2items
+       | selectattr('key', 'in', __orchestrator_identity_provider_config.keys() | list) | rejectattr('key', 'equalto', 'claim_mapping') | items2dict)
+  changed_when: true
+
+- name: Single sign-on | Check the provider is offered on the login page
+  ansible.builtin.uri:
+    url: "{{ __orchestrator_url }}/api/v1/auth/providers"
+    ca_path: "{{ __orchestrator_ca_file.path }}"
+    validate_certs: "{{ automation_orchestrator_configuration_validate_certs | bool }}"
+  register: __orchestrator_public_providers
+  failed_when: >-
+    automation_orchestrator_configuration_identity_provider_name
+    not in (__orchestrator_public_providers.json.resources | map(attribute='name') | list)
+
+- name: Single sign-on | Record status
+  ansible.builtin.set_fact:
+    __orchestrator_identity_provider_status: >-
+      {{ 'created/updated with a new OAuth client' if __orchestrator_need_app | bool else 'in sync' }}; offered on the Automation Orchestrator login page.
+      Verify by logging in with an Ansible Automation Platform account (browser).
+...

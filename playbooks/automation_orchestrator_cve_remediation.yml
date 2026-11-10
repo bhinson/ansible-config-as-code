@@ -1,0 +1,14 @@
+---
+# Add the CVE remediation workflow to Automation Orchestrator (AO): CVE ID form -> Red Hat CVE lookup -> assess hosts ->
+# large language model (LLM) triage -> approval -> minimal fix from Satellite -> report.
+# Run after the AO configuration and LLM integration playbooks, and after configure_automation_platform.yml has created
+# the "CVE remediation | ..." job templates.
+# In Ansible Automation Platform: job template "Automation Orchestrator | Configure CVE remediation workflow"
+# (survey supplies inputs; credential: OpenShift API (configuration as code)).
+#   Local test: source scripts/env.sh && ansible-playbook playbooks/automation_orchestrator_cve_remediation.yml -e @my-vars.yml
+- name: Add the CVE remediation workflow to Automation Orchestrator
+  hosts: localhost
+  gather_facts: false
+  roles:
+    - role: automation_orchestrator_cve_remediation
+...
