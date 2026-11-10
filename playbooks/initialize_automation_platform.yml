@@ -8,7 +8,8 @@
 #   3. project "Configuration as code - ansible-config-as-code" (site_project_scm_url), waits for its first sync
 #   4. inventory "Configuration as code - localhost" with host localhost
 #   5. job template "Configuration as code | Apply Ansible Automation Platform configuration"
-#      (playbook configure_automation_platform.yml, the AAP credential, the site_* values as extra vars)
+#      (playbook configure_automation_platform.yml, the AAP credential, the site_* values as extra vars;
+#      the extra vars are refreshed on every run)
 # then launches that job template and waits (initialize_automation_platform_launch). AAP installs the certified collections
 # during project sync with the organization's console.redhat.com credential, and its run creates everything else.
 #
@@ -320,6 +321,21 @@
         status_code: 201
       register: __initialize_job_template_create
       when: __initialize_job_template_lookup.json.count == 0
+      changed_when: true
+
+    - name: Initialize | Update the configure job template's site values
+      ansible.builtin.uri:
+        url: "{{ __initialize_api }}/job_templates/{{ __initialize_job_template_lookup.json.results[0].id }}/"
+        method: PATCH
+        headers: "{{ __initialize_headers }}"
+        body_format: json
+        body:
+          extra_vars: "{{ __initialize_site_values | to_nice_yaml }}"
+        validate_certs: "{{ initialize_automation_platform_validate_certs | bool }}"
+      when:
+        - __initialize_job_template_lookup.json.count == 1
+        - (__initialize_job_template_lookup.json.results[0].extra_vars | default('', true) | from_yaml | default({}, true))
+          != __initialize_site_values
       changed_when: true
 
     - name: Initialize | Remember the job template ID
