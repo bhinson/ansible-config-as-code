@@ -6,8 +6,10 @@
 #   1. job templates (controller_templates) and workflow job templates (controller_workflows, if any)
 #   2. inventory sources, then inventories (their hosts and groups go with them)
 #   3. projects, credentials, then the custom credential types (global)
-# Job history (jobs, project and inventory syncs) is kept. Objects are never matched by pattern, so anything else in
-# AAP is left alone. AAP refuses to delete objects with running jobs, which stops the cleanup.
+# Job history is kept (the playbook deletes no jobs), but AAP itself removes a project's syncs and an inventory source's
+# syncs together with the project or source; playbook runs stay. Objects are never matched by pattern, so anything else in
+# AAP is left alone. Waits for running project/inventory syncs of those objects; other running jobs make AAP refuse
+# the delete, which stops the cleanup.
 # --check lists what would be deleted and stops.
 #
 # Inputs: AAP_HOSTNAME, AAP_TOKEN (AAP administrator), AAP_VALIDATE_CERTS (default true), AAP_CA_FILE (optional; falls
@@ -102,6 +104,20 @@
     - name: Cleanup | Dry run - stop here
       ansible.builtin.meta: end_play
       when: ansible_check_mode
+
+    - name: Cleanup | Wait for syncs of those projects and inventory sources to finish (AAP won't delete them mid-sync)
+      ansible.builtin.uri:
+        url: "{{ __cleanup_api }}/{{ item.endpoint }}/{{ item.id }}/"
+        status_code: [200, 404]
+      loop: "{{ __cleanup_found | default([]) | selectattr('endpoint', 'in', ['projects', 'inventory_sources']) | list }}"
+      loop_control:
+        label: "{{ item.endpoint }}: {{ item.name }}"
+      register: __cleanup_sync
+      until: >-
+        __cleanup_sync.status == 404
+        or __cleanup_sync.json.status | default('') not in ['new', 'pending', 'waiting', 'running', 'updating']
+      retries: "{{ cleanup_automation_platform_wait_retries }}"
+      delay: "{{ cleanup_automation_platform_wait_delay }}"
 
     - name: Cleanup | Delete the objects (dependents first)
       ansible.builtin.uri:

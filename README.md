@@ -66,7 +66,8 @@ rest of this repo, then launches it.
 **Removing it again:** `ansible-playbook playbooks/cleanup_automation_platform.yml -e @/path/to/site.yml [--check]`
 deletes, by exact name from `configs/automation_platform/` and only in the site organization, the job templates,
 inventory sources, inventories (with their hosts), the project, the credentials and the custom credential type, in that
-order. Job history is kept; nothing else in AAP is touched. `--check` lists what it would delete. Objects that
+order. Playbook run history is kept (AAP itself removes project and inventory sync records along with their project or
+source); nothing else in AAP is touched. `--check` lists what it would delete. Objects that
 Automation Orchestrator roles create (in AO or the AAP gateway) are not removed.
 
 **Without the initialization playbook** (AAP UI): create the same objects by hand: the credential type (inputs and injectors from
