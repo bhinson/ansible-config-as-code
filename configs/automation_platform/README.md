@@ -54,6 +54,6 @@ These only feed object definitions and survey defaults; the roles stay generic.
 | CVE remediation \| Assess hosts | `cve_remediation_assess.yml` | site machine credential | none (launched by the AO workflow with `cve_id` and a limit) |
 | CVE remediation \| Apply fix | `cve_remediation_apply.yml` | site machine credential | none (launched by the AO workflow after approval) |
 
-Order on a fresh cluster: run `playbooks/seed_automation_platform.yml`. It launches **Configuration as code | Apply
+Order on a fresh cluster: run `playbooks/initialize_automation_platform.yml`. It launches **Configuration as code | Apply
 Ansible Automation Platform configuration**, which applies `configure_automation_platform.yml` (credential type,
 credentials, inventories, project, job templates). Then launch **Install on OpenShift**, then **Configure Ansible Automation Platform integration**, then test SSO in a browser. Optionally launch **Configure LLM provider integration**, then **Configure CVE remediation workflow**.

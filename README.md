@@ -25,7 +25,7 @@ Red Hat certified collections first, Red Hat validated content second, and commu
 | `roles/automation_orchestrator_cve_remediation/` | Build and publish that workflow (generic) |
 | `playbooks/cve_remediation_assess.yml`, `cve_remediation_apply.yml` | Host playbooks the workflow launches (assess read-only; apply after approval) |
 | `configs/automation_platform/` | AAP configuration data: credential type, credentials, inventory, project, job templates with surveys |
-| `playbooks/seed_automation_platform.yml` | Seed AAP (ansible-core only) and launch the configure job template |
+| `playbooks/initialize_automation_platform.yml` | Initialize AAP (ansible-core only) and launch the configure job template |
 | `scripts/env.sh` | Loads tokens and CA bundle into the environment (source it) |
 | `skills/`, `AGENTS.md` | Agent skills (redhat-cop layout; upstream redhat-cop skills are linked from `AGENTS.md`, not copied) |
 
@@ -39,19 +39,19 @@ Red Hat certified collections first, Red Hat validated content second, and commu
 
 ## Getting started
 
-Everything runs in AAP. A small seed playbook (ansible-core only, plain REST calls) creates what AAP needs to apply the
+Everything runs in AAP. A small initialization playbook (ansible-core only, plain REST calls) creates what AAP needs to apply the
 rest of this repo, then launches it.
 
 1. Copy the `site_*` settings from `configs/automation_platform/00_settings.yml` into a vars file outside this repo and
    change them (see `configs/automation_platform/README.md`, "Site settings").
-2. Seed AAP:
+2. Initialize AAP:
 
    ```bash
    export AAP_HOSTNAME=https://aap.example.com AAP_TOKEN=...          # or a secrets file with scripts/env.sh
    export K8S_AUTH_HOST=https://api.cluster.example.com:6443 K8S_AUTH_API_KEY=... K8S_AUTH_SSL_CA_CERT=/path/to/api-ca.pem
    export AAP_CA_FILE=/path/to/ingress-ca.pem                          # only if the AAP certificate isn't publicly trusted
-   ansible-playbook playbooks/seed_automation_platform.yml -e @/path/to/site.yml --check   # dry run: shows the plan
-   ansible-playbook playbooks/seed_automation_platform.yml -e @/path/to/site.yml
+   ansible-playbook playbooks/initialize_automation_platform.yml -e @/path/to/site.yml --check   # dry run: shows the plan
+   ansible-playbook playbooks/initialize_automation_platform.yml -e @/path/to/site.yml
    ```
 
    It creates, if missing, the credential type "OpenShift API (configuration as code)", the credentials
@@ -62,7 +62,7 @@ rest of this repo, then launches it.
 3. Afterwards, change the configuration in git and re-launch that job template. Run the Automation Orchestrator job
    templates in the order listed in `configs/automation_platform/README.md`.
 
-**Without the seed playbook** (AAP UI): create the same objects by hand: the credential type (inputs and injectors from
+**Without the initialization playbook** (AAP UI): create the same objects by hand: the credential type (inputs and injectors from
 `configs/automation_platform/credential_types.yml`), the two credentials, a project for this repo, an inventory with one
 host `localhost` (variable `ansible_connection: local`), and a job template for `playbooks/configure_automation_platform.yml`
 with the "Configuration as code - Ansible Automation Platform" credential and your site values as extra vars. Launch it.

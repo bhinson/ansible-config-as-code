@@ -2,7 +2,7 @@
 # Job templates for the Automation Orchestrator roles. All user inputs come from the surveys; survey defaults use
 # the site settings in 00_settings.yml, and the roles themselves stay generic.
 controller_templates:
-  # Created first by playbooks/seed_automation_platform.yml; managed here afterwards. Its extra vars are the site_*
+  # Created first by playbooks/initialize_automation_platform.yml; managed here afterwards. Its extra vars are the site_*
   # values of the run that applies this file, so the site values stay in AAP, not in the repo.
   - name: Configuration as code | Apply Ansible Automation Platform configuration
     description: Apply configs/automation_platform from this repo with infra.aap_configuration.dispatch

@@ -63,7 +63,7 @@ certified/validated, private hub, Galaxy, in that order), so the repo holds no g
 - Lint target: `ansible-lint` profile `production`, `yamllint`.
 
 ## Running
-- **Bootstrap:** `playbooks/seed_automation_platform.yml` (ansible-core only, `ansible.builtin.uri` against the AAP
+- **Bootstrap:** `playbooks/initialize_automation_platform.yml` (ansible-core only, `ansible.builtin.uri` against the AAP
   REST API) creates the credential type, the two credentials, the project, the localhost inventory and the
   "Configuration as code | Apply Ansible Automation Platform configuration" job template, then launches it. Never assume
   certified collections on the CLI; AAP installs them during project sync. `--check` prints the plan and stops.
