@@ -59,6 +59,10 @@ certified/validated, private hub, Galaxy, in that order), so the repo holds no g
   the job's own calls (`module_defaults` for `group/kubernetes.core.k8s`, `validate_certs` on every `uri`), plus a
   separate variable for what AO itself verifies (`insecure_skip_tls_verify` on integrations). Expose them in the
   survey; survey answers are strings, so always apply `| bool`. Prefer passing a CA bundle over disabling checks.
+- **Integers in API request bodies:** build the body (or parameter block) as one dict expression,
+  `body: "{{ {'id': x | int, ...} }}"`. On ansible-core < 2.19 (what AAP execution environments run) a standalone
+  `"{{ x | int }}"` renders to a string; booleans, lists and dicts keep their types either way. Test changes with an
+  ansible-core 2.18 virtualenv as well as the current one.
 - Idempotent re-runs: secrets created only when missing; `kubernetes.core.k8s` with `apply: true`.
 - Lint target: `ansible-lint` profile `production`, `yamllint`.
 
