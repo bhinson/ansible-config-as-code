@@ -26,6 +26,7 @@ Red Hat certified collections first, Red Hat validated content second, and commu
 | `playbooks/cve_remediation_assess.yml`, `cve_remediation_apply.yml` | Host playbooks the workflow launches (assess read-only; apply after approval) |
 | `configs/automation_platform/` | AAP configuration data: credential type, credentials, inventory, project, job templates with surveys |
 | `playbooks/initialize_automation_platform.yml` | Initialize AAP (ansible-core only) and launch the configure job template |
+| `playbooks/cleanup_automation_platform.yml` | Remove every AAP object this repo creates (job history is kept) |
 | `scripts/env.sh` | Loads tokens and CA bundle into the environment (source it) |
 | `skills/`, `AGENTS.md` | Agent skills (redhat-cop layout; upstream redhat-cop skills are linked from `AGENTS.md`, not copied) |
 
@@ -61,6 +62,12 @@ rest of this repo, then launches it.
    then launches that job template, which creates every other object in `configs/automation_platform/`.
 3. Afterwards, change the configuration in git and re-launch that job template. Run the Automation Orchestrator job
    templates in the order listed in `configs/automation_platform/README.md`.
+
+**Removing it again:** `ansible-playbook playbooks/cleanup_automation_platform.yml -e @/path/to/site.yml [--check]`
+deletes, by exact name from `configs/automation_platform/` and only in the site organization, the job templates,
+inventory sources, inventories (with their hosts), the project, the credentials and the custom credential type, in that
+order. Job history is kept; nothing else in AAP is touched. `--check` lists what it would delete. Objects that
+Automation Orchestrator roles create (in AO or the AAP gateway) are not removed.
 
 **Without the initialization playbook** (AAP UI): create the same objects by hand: the credential type (inputs and injectors from
 `configs/automation_platform/credential_types.yml`), the two credentials, a project for this repo, an inventory with one

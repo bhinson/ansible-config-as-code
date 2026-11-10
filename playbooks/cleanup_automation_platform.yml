@@ -1,0 +1,148 @@
+---
+# Remove from Ansible Automation Platform (AAP) everything that initialize_automation_platform.yml and the configure job
+# it launches create, so AAP returns to its state before initialization. Needs only ansible-core (ansible.builtin.uri
+# against the documented AAP REST API).
+# Deletes, by exact name from configs/automation_platform/ (and only in the site organization):
+#   1. job templates (controller_templates) and workflow job templates (controller_workflows, if any)
+#   2. inventory sources, then inventories (their hosts and groups go with them)
+#   3. projects, credentials, then the custom credential types (global)
+# Job history (jobs, project and inventory syncs) is kept. Objects are never matched by pattern, so anything else in
+# AAP is left alone. AAP refuses to delete objects with running jobs, which stops the cleanup.
+# --check lists what would be deleted and stops.
+#
+# Inputs: AAP_HOSTNAME, AAP_TOKEN (AAP administrator), AAP_VALIDATE_CERTS (default true), AAP_CA_FILE (optional; falls
+# back to SSL_CERT_FILE), and the same site values used to initialize: -e @/path/to/site.yml
+# Usage:  ansible-playbook playbooks/cleanup_automation_platform.yml -e @/path/to/site.yml [--check]
+- name: Clean up configuration as code objects from Ansible Automation Platform
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  module_defaults:
+    ansible.builtin.uri:
+      ca_path: "{{ cleanup_automation_platform_ca_file | default(omit, true) }}"
+      validate_certs: "{{ cleanup_automation_platform_validate_certs | bool }}"
+      headers:
+        Authorization: "Bearer {{ cleanup_automation_platform_token }}"
+  vars:
+    cleanup_automation_platform_url: "{{ lookup('ansible.builtin.env', 'AAP_HOSTNAME') | regex_replace('/+$', '') }}"
+    cleanup_automation_platform_token: "{{ lookup('ansible.builtin.env', 'AAP_TOKEN') }}"
+    cleanup_automation_platform_validate_certs: "{{ lookup('ansible.builtin.env', 'AAP_VALIDATE_CERTS') | default('true', true) }}"
+    cleanup_automation_platform_ca_file: >-
+      {{ lookup('ansible.builtin.env', 'AAP_CA_FILE') or lookup('ansible.builtin.env', 'SSL_CERT_FILE') }}
+    cleanup_automation_platform_wait_retries: 60
+    cleanup_automation_platform_wait_delay: 5
+    __cleanup_api: "{{ cleanup_automation_platform_url }}/api/controller/v2"
+  tasks:
+    - name: Cleanup | Load the repo's configuration data (site values from -e @site.yml override the examples)
+      ansible.builtin.include_vars:
+        dir: "{{ playbook_dir }}/../configs/automation_platform"
+        extensions: [yml]
+        ignore_unknown_extensions: true
+
+    - name: Cleanup | Check inputs
+      ansible.builtin.assert:
+        that:
+          - cleanup_automation_platform_url is match('https://.+')
+          - cleanup_automation_platform_token | length > 0
+        fail_msg: Set AAP_HOSTNAME and AAP_TOKEN (or cleanup_automation_platform_url / _token) and pass -e @site.yml.
+        quiet: true
+
+    - name: Cleanup | Look up the organization
+      ansible.builtin.uri:
+        url: "{{ __cleanup_api }}/organizations/?name={{ site_organization | urlencode }}"
+      register: __cleanup_organization
+      check_mode: false
+      failed_when: __cleanup_organization.json.count | default(0) != 1
+
+    - name: Cleanup | List the objects to look for (dependents first)
+      ansible.builtin.set_fact:
+        __cleanup_wanted: >-
+          {{ (controller_templates | default([]) | map(attribute='name') | map('regex_replace', '^(.*)$', 'job_templates|\1') | list)
+             + (controller_workflows | default([]) | map(attribute='name') | map('regex_replace', '^(.*)$', 'workflow_job_templates|\1') | list)
+             + (controller_inventory_sources | default([]) | map(attribute='name') | map('regex_replace', '^(.*)$', 'inventory_sources|\1') | list)
+             + (controller_inventories | default([]) | map(attribute='name') | map('regex_replace', '^(.*)$', 'inventories|\1') | list)
+             + (controller_projects | default([]) | map(attribute='name') | map('regex_replace', '^(.*)$', 'projects|\1') | list)
+             + (controller_credentials | default([]) | map(attribute='name') | map('regex_replace', '^(.*)$', 'credentials|\1') | list)
+             + (controller_credential_types | default([]) | map(attribute='name') | map('regex_replace', '^(.*)$', 'credential_types|\1') | list) }}
+        __cleanup_organization_id: "{{ __cleanup_organization.json.results[0].id }}"
+
+    - name: Cleanup | Look up each object by exact name
+      ansible.builtin.uri:
+        # credential types are global; inventory sources are filtered through their inventory's organization
+        url: >-
+          {{ __cleanup_api }}/{{ item.split('|')[0] }}/?name={{ item.split('|', 1)[1] | urlencode }}{{
+             '' if item.split('|')[0] == 'credential_types'
+             else ('&inventory__organization=' ~ __cleanup_organization_id) if item.split('|')[0] == 'inventory_sources'
+             else ('&organization=' ~ __cleanup_organization_id) }}
+      loop: "{{ __cleanup_wanted }}"
+      loop_control:
+        label: "{{ item }}"
+      register: __cleanup_lookups
+      check_mode: false
+
+    - name: Cleanup | Collect what exists
+      ansible.builtin.set_fact:
+        __cleanup_found: >-
+          {{ __cleanup_found | default([])
+             + [{'endpoint': __cleanup_result.item.split('|')[0], 'name': __cleanup_result.item.split('|', 1)[1],
+                 'id': __cleanup_result.json.results[0].id}] }}
+      loop: "{{ __cleanup_lookups.results }}"
+      loop_control:
+        loop_var: __cleanup_result
+        label: "{{ __cleanup_result.item }}"
+      when: __cleanup_result.json.count | default(0) == 1
+
+    - name: Cleanup | Report the plan
+      ansible.builtin.debug:
+        msg:
+          - "Delete {{ (__cleanup_found | default([])) | length }} objects: {{ (__cleanup_found | default([])) | map(attribute='endpoint')
+              | zip((__cleanup_found | default([])) | map(attribute='name')) | map('join', ': ') | list }}"
+          - "Not found (already gone): {{ __cleanup_lookups.results | rejectattr('json.count', 'equalto', 1) | map(attribute='item') | list }}"
+
+    - name: Cleanup | Dry run - stop here
+      ansible.builtin.meta: end_play
+      when: ansible_check_mode
+
+    - name: Cleanup | Delete the objects (dependents first)
+      ansible.builtin.uri:
+        url: "{{ __cleanup_api }}/{{ item.endpoint }}/{{ item.id }}/"
+        method: DELETE
+        # inventories are deleted asynchronously (202)
+        status_code: [202, 204, 404]
+      loop: "{{ __cleanup_found | default([]) | rejectattr('endpoint', 'in', ['projects', 'credentials', 'credential_types']) | list }}"
+      loop_control:
+        label: "{{ item.endpoint }}: {{ item.name }}"
+      changed_when: true
+
+    - name: Cleanup | Wait for the inventories to be gone
+      ansible.builtin.uri:
+        url: "{{ __cleanup_api }}/inventories/{{ item.id }}/"
+        status_code: [200, 404]
+      loop: "{{ __cleanup_found | default([]) | selectattr('endpoint', 'equalto', 'inventories') | list }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: __cleanup_inventory_gone
+      until: __cleanup_inventory_gone.status == 404
+      retries: "{{ cleanup_automation_platform_wait_retries }}"
+      delay: "{{ cleanup_automation_platform_wait_delay }}"
+
+    - name: Cleanup | Delete the projects, credentials and credential types
+      ansible.builtin.uri:
+        url: "{{ __cleanup_api }}/{{ item.endpoint }}/{{ item.id }}/"
+        method: DELETE
+        status_code: [204, 404]
+      loop: "{{ __cleanup_found | default([]) | selectattr('endpoint', 'in', ['projects', 'credentials', 'credential_types']) | list }}"
+      loop_control:
+        label: "{{ item.endpoint }}: {{ item.name }}"
+      changed_when: true
+
+    - name: Cleanup | Check that nothing is left
+      ansible.builtin.uri:
+        url: "{{ __cleanup_api }}/{{ item.endpoint }}/{{ item.id }}/"
+        status_code: [200, 404]
+      loop: "{{ __cleanup_found | default([]) }}"
+      loop_control:
+        label: "{{ item.endpoint }}: {{ item.name }}"
+      register: __cleanup_left
+      failed_when: __cleanup_left.status != 404
+...
