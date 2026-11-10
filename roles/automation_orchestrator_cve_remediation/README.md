@@ -33,6 +33,12 @@ graph LR
 | Apply fix | Playbook `cve_remediation_apply.yml` on the remediable hosts only: re-checks applicability, `dnf update-minimal --cve`, reboots only if `dnf needs-restarting -r` asks, re-checks | **Yes** |
 | Reports | LLM summaries of the results, or of why no fix is available (content view, registration, unreleased fix, Red Hat mitigation) | No |
 
+Size limits: AO caps a rendered Task agent prompt at 10,000 characters and an approval message at 2,000. The assess job
+therefore reports only what matters (fixed releases and product states for the hosts' RHEL major versions, trimmed
+mitigation and statement text, installed fixes as advisory IDs). One host uses about 3,000 characters of the triage
+prompt and each additional host about 1,200, so check roughly five hosts per run (use the start form's host limit) until
+the inventory work aggregates hosts.
+
 Safety: the LLM decides, but the apply playbook re-checks each host and `dnf update-minimal --cve` only installs the
 advisory's packages, so a wrong host in the limit is left alone.
 

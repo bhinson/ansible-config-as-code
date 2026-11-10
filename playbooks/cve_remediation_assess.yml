@@ -97,10 +97,35 @@
                | map('regex_replace', '\|[^|]*$', '') | map('replace', '|', ' ') | list }}
           # dnf updateinfo lines: "<advisory> <severity>/Sec. <package NEVRA>"
           fixes_available: "{{ __cve_remediation_available.stdout_lines | default([]) | map('trim') | select | list }}"
-          fixes_installed: "{{ __cve_remediation_installed.stdout_lines | default([]) | map('trim') | select | list }}"
+          # advisory IDs only, to keep the LLM prompt small
+          fixes_installed: >-
+            {{ __cve_remediation_installed.stdout_lines | default([]) | map('trim') | select
+               | map('split') | map('first') | unique | list }}
       vars:
         __cve_remediation_package_pattern: >-
           {{ __cve_remediation_source_packages | map('regex_escape') | join('|') or 'NO-SOURCE-PACKAGES' }}
+
+    # AO caps a rendered agent prompt at 10,000 characters, and a CVE record can list dozens of products. Keep only the
+    # RHEL major versions the assessed hosts run, and trim the free-text fields.
+    - name: Assess | Reduce the CVE record to what matters for these hosts
+      ansible.builtin.set_fact:
+        __cve_remediation_fixed_releases: >-
+          {{ __cve_remediation_releases | map(attribute='advisory') | zip(__cve_remediation_releases | map(attribute='package'))
+             | map('join', ' ') | unique | list }}
+        __cve_remediation_product_states: >-
+          {{ __cve_remediation_states | map(attribute='fix_state') | zip(__cve_remediation_states | map(attribute='package_name'))
+             | map('join', ': ') | unique | list }}
+      vars:
+        __cve_remediation_cpe_pattern: >-
+          {{ 'enterprise_linux:(' ~ (ansible_play_hosts | map('extract', hostvars, ['__cve_remediation_host', 'rhel_major'])
+                                     | select | unique | join('|')) ~ ')$' }}
+        __cve_remediation_releases: >-
+          {{ __cve_remediation_record.json.affected_release | default([], true) | selectattr('cpe', 'defined')
+             | selectattr('cpe', 'search', __cve_remediation_cpe_pattern) | list }}
+        __cve_remediation_states: >-
+          {{ __cve_remediation_record.json.package_state | default([], true) | selectattr('cpe', 'defined')
+             | selectattr('cpe', 'search', __cve_remediation_cpe_pattern) | list }}
+      run_once: true
 
     - name: Assess | Report to Automation Orchestrator
       ansible.builtin.set_stats:
@@ -109,6 +134,13 @@
           ao_cve_id: "{{ cve_id }}"
           ao_cve_severity: "{{ __cve_remediation_record.json.threat_severity | default('unknown') }}"
           ao_cvss3_score: "{{ __cve_remediation_record.json.cvss3.cvss3_base_score | default('') }}"
+          ao_cve_title: "{{ __cve_remediation_record.json.bugzilla.description | default('') | truncate(300, true) }}"
+          # "<advisory> <fixed package NEVRA>" for the RHEL major versions of the assessed hosts
+          ao_cve_fixed_releases: "{{ __cve_remediation_fixed_releases }}"
+          # "<fix state>: <package>" (for example "Affected", "Will not fix") for those RHEL versions
+          ao_cve_product_states: "{{ __cve_remediation_product_states }}"
+          ao_cve_mitigation: "{{ __cve_remediation_record.json.mitigation.value | default('') | truncate(800, true) }}"
+          ao_cve_statement: "{{ __cve_remediation_record.json.statement | default('') | truncate(800, true) }}"
           ao_source_packages: "{{ __cve_remediation_source_packages }}"
           ao_hosts: >-
             {{ dict(ansible_play_hosts | zip(ansible_play_hosts | map('extract', hostvars, '__cve_remediation_host'))) }}

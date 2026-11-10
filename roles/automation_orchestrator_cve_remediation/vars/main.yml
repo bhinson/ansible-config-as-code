@@ -1,5 +1,7 @@
 ---
-# The AO workflow definition (schema 2.0.0). ${...} expressions are resolved by AO at run time (AO reference guide:
+# The AO workflow definition (schema 2.0.0). AO limits: a rendered agent prompt is at most 10,000 characters and an
+# approval message at most 2,000, so prompts use the assess job's compact artifacts, not the raw CVE record.
+# ${...} expressions are resolved by AO at run time (AO reference guide:
 # trigger fields ${trigger.x}; REST API step ${id.body}; job template step ${id.artifacts}; Task Agent ${id.output};
 # approval ports approved/rejected). {{ ... }} values are filled in by this role.
 __automation_orchestrator_cve_remediation_job_template_common:
@@ -81,8 +83,8 @@ __automation_orchestrator_cve_remediation_definition:
           - CVSS v3 base score: ${cve_lookup.body.cvss3.cvss3_base_score}
           - Public date: ${cve_lookup.body.public_date}
           - Description: ${cve_lookup.body.bugzilla.description}
-          - Fixed releases (advisory, fixed package, product): ${cve_lookup.body.affected_release}
-          - Other product states (affected, not affected, will not fix): ${cve_lookup.body.package_state}
+          - Fixed releases for the hosts' RHEL versions (advisory, fixed package): ${assess.artifacts.ao_cve_fixed_releases}
+          - Other states for those RHEL versions (affected, not affected, will not fix): ${assess.artifacts.ao_cve_product_states}
 
           Host assessment from the job "Assess hosts":
           - Source packages checked: ${assess.artifacts.ao_source_packages}
@@ -101,8 +103,9 @@ __automation_orchestrator_cve_remediation_definition:
           4. route is "remediate" if at least one host is remediable, "no_fix_available" if hosts are vulnerable but none
              is remediable, otherwise "not_affected".
           5. remediable_hosts_limit is the remediable host names joined with commas and no spaces ("" if none).
-          6. packages_to_update are the package names in fixes_available on remediable hosts; advisories are their
-             advisory IDs.
+          6. packages_to_update are the unique package names (without versions) in fixes_available on remediable hosts;
+             advisories are their unique advisory IDs.
+          7. reasoning is at most two sentences.
           Return only JSON that matches the response schema.
         responseSchema:
           type: object
@@ -118,7 +121,7 @@ __automation_orchestrator_cve_remediation_definition:
             not_affected_hosts: {type: array, items: {type: string}}
             advisories: {type: array, items: {type: string}}
             packages_to_update: {type: array, items: {type: string}}
-            reasoning: {type: string}
+            reasoning: {type: string, maxLength: 400}
 
     - id: route
       name: Route on the triage decision
@@ -199,10 +202,10 @@ __automation_orchestrator_cve_remediation_definition:
           Vulnerable hosts: ${triage.output.vulnerable_hosts}
           Triage reasoning: ${triage.output.reasoning}
           Host assessment: ${assess.artifacts.ao_hosts}
-          Red Hat fixed releases: ${cve_lookup.body.affected_release}
-          Red Hat product states: ${cve_lookup.body.package_state}
-          Red Hat mitigation: ${cve_lookup.body.mitigation}
-          Red Hat statement: ${cve_lookup.body.statement}
+          Red Hat fixed releases for these RHEL versions: ${assess.artifacts.ao_cve_fixed_releases}
+          Red Hat product states for these RHEL versions: ${assess.artifacts.ao_cve_product_states}
+          Red Hat mitigation: ${assess.artifacts.ao_cve_mitigation}
+          Red Hat statement: ${assess.artifacts.ao_cve_statement}
           Explain the likely cause for each host (for example: Red Hat has not released a fix for its RHEL version, the
           fixing advisory is not in the host's Satellite content view yet, or the host is not registered to Satellite)
           and recommend next steps, including any Red Hat mitigation. Use only this data. Return only JSON that matches
