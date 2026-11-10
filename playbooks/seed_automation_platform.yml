@@ -1,0 +1,382 @@
+---
+# Seed Ansible Automation Platform (AAP) so it can apply this repo's configuration itself. Needs only ansible-core
+# (ansible.builtin.uri against the documented AAP REST API); no certified collections on the machine running it.
+# Creates, if missing, the objects needed to bootstrap (names and the credential type come from configs/automation_platform/):
+#   1. credential type "OpenShift API (configuration as code)"
+#   2. credentials "Configuration as code - OpenShift API" and "Configuration as code - Ansible Automation Platform"
+#      (secrets set from the inputs below; re-applied on every run unless seed_automation_platform_update_secrets=false)
+#   3. project "Configuration as code - ansible-config-as-code" (site_project_scm_url), waits for its first sync
+#   4. inventory "Configuration as code - localhost" with host localhost
+#   5. job template "Configuration as code | Apply Ansible Automation Platform configuration"
+#      (playbook configure_automation_platform.yml, the AAP credential, the site_* values as extra vars)
+# then launches that job template and waits (seed_automation_platform_launch). AAP installs the certified collections
+# during project sync with the organization's console.redhat.com credential, and its run creates everything else.
+#
+# Inputs (environment variables, e.g. from scripts/env.sh, or the matching extra vars):
+#   AAP_HOSTNAME (gateway URL), AAP_TOKEN (OAuth2 token of an AAP administrator), AAP_VALIDATE_CERTS (default true),
+#   AAP_CA_FILE (optional PEM bundle that signed the gateway certificate; falls back to SSL_CERT_FILE)
+#   K8S_AUTH_HOST, K8S_AUTH_API_KEY, K8S_AUTH_SSL_CA_CERT (path to the cluster API CA bundle, PEM)
+#   site values: -e @/path/to/site.yml (see configs/automation_platform/README.md, "Site settings")
+# Usage:  ansible-playbook playbooks/seed_automation_platform.yml -e @/path/to/site.yml
+- name: Seed Ansible Automation Platform for configuration as code
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  module_defaults:
+    ansible.builtin.uri:
+      ca_path: "{{ seed_automation_platform_ca_file | default(omit, true) }}"
+  vars:
+    seed_automation_platform_ca_file: >-
+      {{ lookup('ansible.builtin.env', 'AAP_CA_FILE') or lookup('ansible.builtin.env', 'SSL_CERT_FILE') }}
+    seed_automation_platform_url: "{{ lookup('ansible.builtin.env', 'AAP_HOSTNAME') | regex_replace('/+$', '') }}"
+    seed_automation_platform_token: "{{ lookup('ansible.builtin.env', 'AAP_TOKEN') }}"
+    seed_automation_platform_validate_certs: "{{ lookup('ansible.builtin.env', 'AAP_VALIDATE_CERTS') | default('true', true) }}"
+    seed_automation_platform_openshift_api_url: "{{ lookup('ansible.builtin.env', 'K8S_AUTH_HOST') }}"
+    seed_automation_platform_openshift_api_token: "{{ lookup('ansible.builtin.env', 'K8S_AUTH_API_KEY') }}"
+    seed_automation_platform_openshift_api_ca_file: "{{ lookup('ansible.builtin.env', 'K8S_AUTH_SSL_CA_CERT') }}"
+    seed_automation_platform_update_secrets: true
+    seed_automation_platform_launch: true
+    seed_automation_platform_job_template: Configuration as code | Apply Ansible Automation Platform configuration
+    seed_automation_platform_wait_retries: 120
+    seed_automation_platform_wait_delay: 10
+    __seed_api: "{{ seed_automation_platform_url }}/api/controller/v2"
+    __seed_headers:
+      Authorization: "Bearer {{ seed_automation_platform_token }}"
+  tasks:
+    - name: Seed | Load the repo's configuration data (site values from -e @site.yml override the examples)
+      ansible.builtin.include_vars:
+        dir: "{{ playbook_dir }}/../configs/automation_platform"
+        extensions: [yml]
+        ignore_unknown_extensions: true
+
+    - name: Seed | Collect the names and site values to use
+      ansible.builtin.set_fact:
+        __seed_credential_type: "{{ controller_credential_types | first }}"
+        __seed_openshift_credential: >-
+          {{ controller_credentials | selectattr('credential_type', 'equalto', (controller_credential_types | first).name) | first }}
+        __seed_platform_credential: >-
+          {{ controller_credentials | selectattr('credential_type', 'equalto', 'Red Hat Ansible Automation Platform') | first }}
+        __seed_project: "{{ controller_projects | first }}"
+        __seed_inventory_name: Configuration as code - localhost
+        __seed_site_values: >-
+          {{ dict(query('ansible.builtin.varnames', '^site_') | zip(query('ansible.builtin.vars', *query('ansible.builtin.varnames', '^site_')))) }}
+
+    - name: Seed | Check inputs
+      ansible.builtin.assert:
+        that:
+          - seed_automation_platform_url is match('https://.+')
+          - seed_automation_platform_token | length > 0
+          - seed_automation_platform_openshift_api_url is match('https://.+')
+          - seed_automation_platform_openshift_api_token | length > 0
+          - seed_automation_platform_openshift_api_ca_file | length > 0
+          - __seed_site_values.site_project_scm_url is match('https?://.+')
+        fail_msg: >-
+          Set AAP_HOSTNAME, AAP_TOKEN, K8S_AUTH_HOST, K8S_AUTH_API_KEY and K8S_AUTH_SSL_CA_CERT (or the matching
+          seed_automation_platform_* extra vars) and pass your site values with -e @site.yml.
+        quiet: true
+
+    - name: Seed | Look up the organization, execution environment and AAP credential type
+      ansible.builtin.uri:
+        url: "{{ __seed_api }}/{{ item.path }}/?name={{ item.name | urlencode }}"
+        headers: "{{ __seed_headers }}"
+        validate_certs: "{{ seed_automation_platform_validate_certs | bool }}"
+      loop:
+        - {path: organizations, name: "{{ __seed_site_values.site_organization }}"}
+        - {path: execution_environments, name: "{{ __seed_site_values.site_execution_environment }}"}
+        - {path: credential_types, name: Red Hat Ansible Automation Platform}
+        - {path: credential_types, name: "{{ __seed_credential_type.name }}"}
+      loop_control:
+        label: "{{ item.path }}: {{ item.name }}"
+      register: __seed_lookups
+      check_mode: false
+      # every lookup must find exactly one object, except the custom credential type (created below if missing)
+      failed_when: >-
+        __seed_lookups.status != 200
+        or (item.name != __seed_credential_type.name and __seed_lookups.json.count != 1)
+
+    - name: Seed | Create the credential type
+      ansible.builtin.uri:
+        url: "{{ __seed_api }}/credential_types/"
+        method: POST
+        headers: "{{ __seed_headers }}"
+        body_format: json
+        body: "{{ __seed_credential_type }}"
+        validate_certs: "{{ seed_automation_platform_validate_certs | bool }}"
+        status_code: 201
+      register: __seed_credential_type_create
+      when: __seed_lookups.results[3].json.count == 0
+      changed_when: true
+
+    - name: Seed | Remember the IDs
+      ansible.builtin.set_fact:
+        __seed_organization_id: "{{ __seed_lookups.results[0].json.results[0].id }}"
+        __seed_execution_environment_id: "{{ __seed_lookups.results[1].json.results[0].id }}"
+        __seed_platform_type_id: "{{ __seed_lookups.results[2].json.results[0].id }}"
+        __seed_openshift_type_id: >-
+          {{ __seed_credential_type_create.json.id if __seed_credential_type_create is changed
+             else __seed_lookups.results[3].json.results | map(attribute='id') | first | default('') }}
+
+    - name: Seed | Look up the credentials
+      ansible.builtin.uri:
+        url: "{{ __seed_api }}/credentials/?name={{ item | urlencode }}&organization={{ __seed_organization_id }}"
+        headers: "{{ __seed_headers }}"
+        validate_certs: "{{ seed_automation_platform_validate_certs | bool }}"
+      loop:
+        - "{{ __seed_openshift_credential.name }}"
+        - "{{ __seed_platform_credential.name }}"
+      register: __seed_credential_lookups
+      check_mode: false
+
+    - name: Seed | Create or update the credentials
+      ansible.builtin.uri:
+        url: >-
+          {{ __seed_api }}/credentials/{{ (item.existing.id ~ '/') if item.existing else '' }}
+        method: "{{ 'PATCH' if item.existing else 'POST' }}"
+        headers: "{{ __seed_headers }}"
+        body_format: json
+        body: >-
+          {{ {'inputs': item.inputs} if item.existing else
+             {'name': item.name, 'description': item.description, 'organization': __seed_organization_id | int,
+              'credential_type': item.type_id | int, 'inputs': item.inputs} }}
+        validate_certs: "{{ seed_automation_platform_validate_certs | bool }}"
+        status_code: [200, 201]
+      loop:
+        - name: "{{ __seed_openshift_credential.name }}"
+          description: "{{ __seed_openshift_credential.description }}"
+          type_id: "{{ __seed_openshift_type_id }}"
+          existing: "{{ __seed_credential_lookups.results[0].json.results | first | default({}) }}"
+          inputs:
+            host: "{{ seed_automation_platform_openshift_api_url }}"
+            bearer_token: "{{ seed_automation_platform_openshift_api_token }}"
+            ssl_ca_cert: "{{ lookup('ansible.builtin.file', seed_automation_platform_openshift_api_ca_file) }}"
+        - name: "{{ __seed_platform_credential.name }}"
+          description: "{{ __seed_platform_credential.description }}"
+          type_id: "{{ __seed_platform_type_id }}"
+          existing: "{{ __seed_credential_lookups.results[1].json.results | first | default({}) }}"
+          inputs:
+            host: "{{ seed_automation_platform_url }}"
+            oauth_token: "{{ seed_automation_platform_token }}"
+            verify_ssl: "{{ __seed_site_values.site_automation_platform_validate_certs | bool }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: __seed_credentials
+      when: not item.existing or seed_automation_platform_update_secrets | bool
+      changed_when: true
+      no_log: true
+
+    - name: Seed | Look up the credential IDs
+      ansible.builtin.uri:
+        url: "{{ __seed_api }}/credentials/?name={{ __seed_platform_credential.name | urlencode }}&organization={{ __seed_organization_id }}"
+        headers: "{{ __seed_headers }}"
+        validate_certs: "{{ seed_automation_platform_validate_certs | bool }}"
+      register: __seed_platform_credential_lookup
+      check_mode: false
+
+    - name: Seed | Look up the project and inventory
+      ansible.builtin.uri:
+        url: "{{ __seed_api }}/{{ item.path }}/?name={{ item.name | urlencode }}&organization={{ __seed_organization_id }}"
+        headers: "{{ __seed_headers }}"
+        validate_certs: "{{ seed_automation_platform_validate_certs | bool }}"
+      loop:
+        - {path: projects, name: "{{ __seed_project.name }}"}
+        - {path: inventories, name: "{{ __seed_inventory_name }}"}
+      loop_control:
+        label: "{{ item.path }}: {{ item.name }}"
+      register: __seed_object_lookups
+      check_mode: false
+
+    - name: Seed | Dry run - look up the configure job template
+      ansible.builtin.uri:
+        url: "{{ __seed_api }}/job_templates/?name={{ seed_automation_platform_job_template | urlencode }}&organization={{ __seed_organization_id }}"
+        headers: "{{ __seed_headers }}"
+        validate_certs: "{{ seed_automation_platform_validate_certs | bool }}"
+      register: __seed_dry_run_job_template
+      check_mode: false
+      when: ansible_check_mode
+
+    - name: Seed | Dry run - report the plan
+      ansible.builtin.debug:
+        msg:
+          - "credential type '{{ __seed_credential_type.name }}': {{ 'exists' if __seed_lookups.results[3].json.count else 'CREATE' }}"
+          - >-
+            credential '{{ __seed_openshift_credential.name }}':
+            {{ 'exists, update secrets' if __seed_credential_lookups.results[0].json.count else 'CREATE' }}
+          - >-
+            credential '{{ __seed_platform_credential.name }}':
+            {{ 'exists, update secrets' if __seed_credential_lookups.results[1].json.count else 'CREATE' }}
+          - >-
+            project '{{ __seed_project.name }}' ({{ __seed_site_values.site_project_scm_url }}):
+            {{ 'exists' if __seed_object_lookups.results[0].json.count else 'CREATE and sync' }}
+          - "inventory '{{ __seed_inventory_name }}': {{ 'exists' if __seed_object_lookups.results[1].json.count else 'CREATE with host localhost' }}"
+          - "job template '{{ seed_automation_platform_job_template }}': {{ 'exists' if __seed_dry_run_job_template.json.count else 'CREATE' }}"
+          - "then: {{ 'LAUNCH it and wait' if seed_automation_platform_launch | bool else 'do not launch' }}"
+          - "job template extra vars (site values): {{ __seed_site_values }}"
+      when: ansible_check_mode
+
+    - name: Seed | Dry run - stop here
+      ansible.builtin.meta: end_play
+      when: ansible_check_mode
+
+    - name: Seed | Create the project
+      ansible.builtin.uri:
+        url: "{{ __seed_api }}/projects/"
+        method: POST
+        headers: "{{ __seed_headers }}"
+        body_format: json
+        body:
+          name: "{{ __seed_project.name }}"
+          description: "{{ __seed_project.description }}"
+          organization: "{{ __seed_organization_id | int }}"
+          scm_type: git
+          scm_url: "{{ __seed_site_values.site_project_scm_url }}"
+          scm_branch: "{{ __seed_site_values.site_project_scm_branch }}"
+          scm_update_on_launch: true
+          default_environment: "{{ __seed_execution_environment_id | int }}"
+        validate_certs: "{{ seed_automation_platform_validate_certs | bool }}"
+        status_code: 201
+      register: __seed_project_create
+      when: __seed_object_lookups.results[0].json.count == 0
+      changed_when: true
+
+    - name: Seed | Remember the project ID
+      ansible.builtin.set_fact:
+        __seed_project_id: >-
+          {{ __seed_project_create.json.id if __seed_project_create is changed
+             else __seed_object_lookups.results[0].json.results[0].id }}
+
+    - name: Seed | Wait for the project to sync
+      ansible.builtin.uri:
+        url: "{{ __seed_api }}/projects/{{ __seed_project_id }}/"
+        headers: "{{ __seed_headers }}"
+        validate_certs: "{{ seed_automation_platform_validate_certs | bool }}"
+      register: __seed_project_status
+      check_mode: false
+      until: __seed_project_status.json.status in ['successful', 'failed', 'error', 'canceled']
+      retries: "{{ seed_automation_platform_wait_retries }}"
+      delay: "{{ seed_automation_platform_wait_delay }}"
+      failed_when: __seed_project_status.json.status != 'successful'
+
+    - name: Seed | Create the localhost inventory
+      ansible.builtin.uri:
+        url: "{{ __seed_api }}/inventories/"
+        method: POST
+        headers: "{{ __seed_headers }}"
+        body_format: json
+        body:
+          name: "{{ __seed_inventory_name }}"
+          description: Control-node-only inventory for configuration-as-code jobs
+          organization: "{{ __seed_organization_id | int }}"
+        validate_certs: "{{ seed_automation_platform_validate_certs | bool }}"
+        status_code: 201
+      register: __seed_inventory_create
+      when: __seed_object_lookups.results[1].json.count == 0
+      changed_when: true
+
+    - name: Seed | Add localhost to the new inventory
+      ansible.builtin.uri:
+        url: "{{ __seed_api }}/inventories/{{ __seed_inventory_create.json.id }}/hosts/"
+        method: POST
+        headers: "{{ __seed_headers }}"
+        body_format: json
+        body:
+          name: localhost
+          variables: "{{ {'ansible_connection': 'local'} | to_json }}"
+        validate_certs: "{{ seed_automation_platform_validate_certs | bool }}"
+        status_code: 201
+      when: __seed_inventory_create.json.id is defined
+      changed_when: true
+
+    - name: Seed | Look up the configure job template
+      ansible.builtin.uri:
+        url: "{{ __seed_api }}/job_templates/?name={{ seed_automation_platform_job_template | urlencode }}&organization={{ __seed_organization_id }}"
+        headers: "{{ __seed_headers }}"
+        validate_certs: "{{ seed_automation_platform_validate_certs | bool }}"
+      register: __seed_job_template_lookup
+      check_mode: false
+
+    - name: Seed | Create the configure job template
+      ansible.builtin.uri:
+        url: "{{ __seed_api }}/job_templates/"
+        method: POST
+        headers: "{{ __seed_headers }}"
+        body_format: json
+        body:
+          name: "{{ seed_automation_platform_job_template }}"
+          description: Apply configs/automation_platform from this repo with infra.aap_configuration.dispatch
+          project: "{{ __seed_project_id | int }}"
+          playbook: playbooks/configure_automation_platform.yml
+          inventory: >-
+            {{ (__seed_inventory_create.json.id if __seed_inventory_create is changed
+                else __seed_object_lookups.results[1].json.results[0].id) | int }}
+          execution_environment: "{{ __seed_execution_environment_id | int }}"
+          extra_vars: "{{ __seed_site_values | to_nice_yaml }}"
+        validate_certs: "{{ seed_automation_platform_validate_certs | bool }}"
+        status_code: 201
+      register: __seed_job_template_create
+      when: __seed_job_template_lookup.json.count == 0
+      changed_when: true
+
+    - name: Seed | Remember the job template ID
+      ansible.builtin.set_fact:
+        __seed_job_template_id: >-
+          {{ __seed_job_template_create.json.id if __seed_job_template_create is changed
+             else __seed_job_template_lookup.json.results[0].id }}
+
+    - name: Seed | List the job template's credentials
+      ansible.builtin.uri:
+        url: "{{ __seed_api }}/job_templates/{{ __seed_job_template_id }}/credentials/"
+        headers: "{{ __seed_headers }}"
+        validate_certs: "{{ seed_automation_platform_validate_certs | bool }}"
+      register: __seed_job_template_credentials
+      check_mode: false
+
+    - name: Seed | Attach the AAP credential to the job template
+      ansible.builtin.uri:
+        url: "{{ __seed_api }}/job_templates/{{ __seed_job_template_id }}/credentials/"
+        method: POST
+        headers: "{{ __seed_headers }}"
+        body_format: json
+        body:
+          id: "{{ __seed_platform_credential_lookup.json.results[0].id | int }}"
+        validate_certs: "{{ seed_automation_platform_validate_certs | bool }}"
+        status_code: 204
+      when: >-
+        __seed_platform_credential_lookup.json.results[0].id
+        not in (__seed_job_template_credentials.json.results | map(attribute='id') | list)
+      changed_when: true
+
+    - name: Seed | Launch the configure job template
+      ansible.builtin.uri:
+        url: "{{ __seed_api }}/job_templates/{{ __seed_job_template_id }}/launch/"
+        method: POST
+        headers: "{{ __seed_headers }}"
+        body_format: json
+        body: {}
+        validate_certs: "{{ seed_automation_platform_validate_certs | bool }}"
+        status_code: 201
+      register: __seed_launch
+      when: seed_automation_platform_launch | bool
+      changed_when: true
+
+    - name: Seed | Wait for the configure job
+      ansible.builtin.uri:
+        url: "{{ __seed_api }}/jobs/{{ __seed_launch.json.job }}/"
+        headers: "{{ __seed_headers }}"
+        validate_certs: "{{ seed_automation_platform_validate_certs | bool }}"
+      register: __seed_job
+      check_mode: false
+      until: __seed_job.json.finished is not none and __seed_job.json.finished | length > 0
+      retries: "{{ seed_automation_platform_wait_retries }}"
+      delay: "{{ seed_automation_platform_wait_delay }}"
+      failed_when: __seed_job.json.status != 'successful'
+      when: seed_automation_platform_launch | bool
+
+    - name: Seed | Report
+      ansible.builtin.debug:
+        msg:
+          - "Job template '{{ seed_automation_platform_job_template }}' (id {{ __seed_job_template_id }})"
+          - >-
+            {{ ('Configure job ' ~ __seed_launch.json.job ~ ': ' ~ __seed_job.json.status ~ ' - '
+                ~ seed_automation_platform_url ~ '/execution/jobs/playbook/' ~ __seed_launch.json.job ~ '/output')
+               if seed_automation_platform_launch | bool else 'Not launched (seed_automation_platform_launch=false)' }}
+...

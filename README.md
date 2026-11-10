@@ -25,27 +25,50 @@ Red Hat certified collections first, Red Hat validated content second, and commu
 | `roles/automation_orchestrator_cve_remediation/` | Build and publish that workflow (generic) |
 | `playbooks/cve_remediation_assess.yml`, `cve_remediation_apply.yml` | Host playbooks the workflow launches (assess read-only; apply after approval) |
 | `configs/automation_platform/` | AAP configuration data: credential type, credentials, inventory, project, job templates with surveys |
+| `playbooks/seed_automation_platform.yml` | Seed AAP (ansible-core only) and launch the configure job template |
 | `scripts/env.sh` | Loads tokens and CA bundle into the environment (source it) |
 | `skills/`, `AGENTS.md` | Agent skills (redhat-cop layout; upstream redhat-cop skills are linked from `AGENTS.md`, not copied) |
 
 ## Prerequisites
 
-Runs as an **AAP project**: project sync installs `collections/requirements.yml` with the organization's
-Galaxy credentials, and job templates supply the OpenShift and AAP credentials.
+- AAP 2.5 or later. The organization that will own the objects needs a Galaxy credential for console.redhat.com
+  Automation Hub (certified and validated content): AAP installs `collections/requirements.yml` with it during project
+  sync. The machine you deploy from needs **no** certified collections.
+- An AAP administrator token, and for the OpenShift roles a cluster API URL, token and CA bundle.
+- An existing machine credential for managed hosts (CVE remediation), named in your site settings.
 
-For local testing: ansible-core 2.16+, Python packages from `requirements.txt` (virtualenv), and the OpenShift /
-AAP tokens exported by `scripts/env.sh`.
+## Getting started
 
-## Usage
+Everything runs in AAP. A small seed playbook (ansible-core only, plain REST calls) creates what AAP needs to apply the
+rest of this repo, then launches it.
 
-In AAP: create a project from this repo and a job template per playbook (see `CLAUDE.md`).
+1. Copy the `site_*` settings from `configs/automation_platform/00_settings.yml` into a vars file outside this repo and
+   change them (see `configs/automation_platform/README.md`, "Site settings").
+2. Seed AAP:
 
-Locally (testing):
+   ```bash
+   export AAP_HOSTNAME=https://aap.example.com AAP_TOKEN=...          # or a secrets file with scripts/env.sh
+   export K8S_AUTH_HOST=https://api.cluster.example.com:6443 K8S_AUTH_API_KEY=... K8S_AUTH_SSL_CA_CERT=/path/to/api-ca.pem
+   export AAP_CA_FILE=/path/to/ingress-ca.pem                          # only if the AAP certificate isn't publicly trusted
+   ansible-playbook playbooks/seed_automation_platform.yml -e @/path/to/site.yml --check   # dry run: shows the plan
+   ansible-playbook playbooks/seed_automation_platform.yml -e @/path/to/site.yml
+   ```
 
-```bash
-source scripts/env.sh                      # reads a local secrets file, prints only which vars are set
-ansible-playbook playbooks/openshift_automation_orchestrator.yml --check
-```
+   It creates, if missing, the credential type "OpenShift API (configuration as code)", the credentials
+   "Configuration as code - OpenShift API" and "Configuration as code - Ansible Automation Platform", the project,
+   the inventory "Configuration as code - localhost", and the job template
+   **"Configuration as code | Apply Ansible Automation Platform configuration"** (your site values become its extra vars),
+   then launches that job template, which creates every other object in `configs/automation_platform/`.
+3. Afterwards, change the configuration in git and re-launch that job template. Run the Automation Orchestrator job
+   templates in the order listed in `configs/automation_platform/README.md`.
+
+**Without the seed playbook** (AAP UI): create the same objects by hand: the credential type (inputs and injectors from
+`configs/automation_platform/credential_types.yml`), the two credentials, a project for this repo, an inventory with one
+host `localhost` (variable `ansible_connection: local`), and a job template for `playbooks/configure_automation_platform.yml`
+with the "Configuration as code - Ansible Automation Platform" credential and your site values as extra vars. Launch it.
+
+Local test runs (`--check`) need ansible-core, `requirements.txt` and the collections, plus the tokens from
+`scripts/env.sh` (see its header).
 
 ## Secrets
 

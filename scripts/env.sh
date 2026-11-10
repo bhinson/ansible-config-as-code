@@ -54,7 +54,8 @@ else
   for _f in /etc/ssl/cert.pem /etc/pki/tls/certs/ca-bundle.crt /etc/ssl/certs/ca-certificates.crt; do
     [ -r "$_f" ] && { _pub="$_f"; break; }
   done
-  cat $_pub ${CONFIGURATION_AS_CODE_API_CA_FILE:+"$CONFIGURATION_AS_CODE_API_CA_FILE"} \
+  # awk 1 ends every file with a newline, so a CA file without one can't merge two certificates
+  awk 1 $_pub ${CONFIGURATION_AS_CODE_API_CA_FILE:+"$CONFIGURATION_AS_CODE_API_CA_FILE"} \
     ${CONFIGURATION_AS_CODE_INGRESS_CA_FILE:+"$CONFIGURATION_AS_CODE_INGRESS_CA_FILE"} > "$_bundle" 2>/dev/null
   export SSL_CERT_FILE="$_bundle" REQUESTS_CA_BUNDLE="$_bundle"
   echo "  set   SSL_CERT_FILE / REQUESTS_CA_BUNDLE (public roots + cluster CAs)"

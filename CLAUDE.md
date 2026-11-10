@@ -63,6 +63,10 @@ certified/validated, private hub, Galaxy, in that order), so the repo holds no g
 - Lint target: `ansible-lint` profile `production`, `yamllint`.
 
 ## Running
+- **Bootstrap:** `playbooks/seed_automation_platform.yml` (ansible-core only, `ansible.builtin.uri` against the AAP
+  REST API) creates the credential type, the two credentials, the project, the localhost inventory and the
+  "Configuration as code | Apply Ansible Automation Platform configuration" job template, then launches it. Never assume
+  certified collections on the CLI; AAP installs them during project sync. `--check` prints the plan and stops.
 - **In AAP (normal):** project = this repo; job template per playbook (`playbooks/*.yml`, inventory with localhost);
   credentials: **"OpenShift API (configuration as code)"** (custom type defined in `configs/automation_platform/credential_types.yml`) for `openshift_*`
   playbooks, "Red Hat Ansible Automation Platform" for `configure_automation_platform.yml` / `export_automation_platform.yml`.
