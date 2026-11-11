@@ -22,6 +22,8 @@
         ah_host: "{{ aap_hostname }}"
         ah_token: "{{ aap_token }}"
         validate_certs: "{{ aap_validate_certs | default(true) | bool }}"
+        # set explicitly: the AAP credential injects an empty AAP_REQUEST_TIMEOUT, which the module would read and reject
+        request_timeout: 60
       loop: >-
         {{ (sync_automation_hub_repositories.split(',') if sync_automation_hub_repositories is string
             else sync_automation_hub_repositories) | map('trim') | select | list }}
