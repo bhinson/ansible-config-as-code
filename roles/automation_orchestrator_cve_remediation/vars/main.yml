@@ -2,7 +2,8 @@
 # The AO workflow definition (schema 2.0.0). AO limits: a rendered agent prompt is at most 10,000 characters and an
 # approval message at most 2,000, so prompts use the assess job's compact artifacts, not the raw CVE record.
 # ${...} expressions are resolved by AO at run time (AO reference guide:
-# trigger fields ${trigger.x}; REST API step ${id.body}; job template step ${id.artifacts}; Task Agent ${id.output};
+# trigger fields ${trigger.x}; REST API step ${id.body}; job template step ${id.artifacts}; Task Agent
+# ${id.result.content} (verified on AO 2026.8; the reference guide's ${id.output} does not exist);
 # approval ports approved/rejected). {{ ... }} values are filled in by this role.
 __automation_orchestrator_cve_remediation_job_template_common:
   organization_name: "{{ automation_orchestrator_cve_remediation_organization_name }}"
@@ -13,11 +14,11 @@ __automation_orchestrator_cve_remediation_job_template_common:
 __automation_orchestrator_cve_remediation_approval_prompt: |
   Approve installing the fix for ${trigger.cve_id} (Red Hat severity ${cve_lookup.body.threat_severity},
   CVSS ${cve_lookup.body.cvss3.cvss3_base_score}) from Satellite.
-  Hosts: ${triage.output.remediable_hosts_limit}
-  Advisories: ${triage.output.advisories}
-  Packages: ${triage.output.packages_to_update}
+  Hosts: ${triage.result.content.remediable_hosts_limit}
+  Advisories: ${triage.result.content.advisories}
+  Packages: ${triage.result.content.packages_to_update}
   Method: dnf update-minimal --cve (only the advisory packages); hosts reboot only if dnf needs-restarting says so.
-  Triage reasoning: ${triage.output.reasoning}
+  Triage reasoning: ${triage.result.content.reasoning}
   Rejecting, or no decision within the window, stops the workflow without changes.
 
 __automation_orchestrator_cve_remediation_definition:
@@ -133,10 +134,10 @@ __automation_orchestrator_cve_remediation_definition:
         cases:
           - port: case_0
             label: Fix available - ask for approval
-            condition: ${triage.output.route} == "remediate"
+            condition: ${triage.result.content.route} == "remediate"
           - port: case_1
             label: Vulnerable, no fix in Satellite - report
-            condition: ${triage.output.route} == "no_fix_available"
+            condition: ${triage.result.content.route} == "no_fix_available"
         default_port: default
 
     - id: approve
@@ -157,7 +158,7 @@ __automation_orchestrator_cve_remediation_definition:
       parameters: >-
         {{ __automation_orchestrator_cve_remediation_job_template_common | combine({
              'job_template_name': automation_orchestrator_cve_remediation_apply_job_template,
-             'limit': '${triage.output.remediable_hosts_limit}',
+             'limit': '${triage.result.content.remediable_hosts_limit}',
              'extra_vars': {'cve_id': '${trigger.cve_id}',
                             'cve_remediation_reboot': automation_orchestrator_cve_remediation_reboot | bool}}) }}
 
@@ -172,14 +173,13 @@ __automation_orchestrator_cve_remediation_definition:
         tool_selection_strategy: NONE
         prompt: |
           Write a short remediation report for ${trigger.cve_id} (Red Hat severity ${cve_lookup.body.threat_severity}).
-          Approved by ${approve.decided_by} at ${approve.decided_at}.
           Results from the job "Apply the fix" (fixes_before = pending fixes before the update; fixes_still_pending =
           pending fixes after it; updated; reboot_needed; rebooted): ${apply.artifacts.ao_results}
           Remediated hosts: ${apply.artifacts.ao_remediated_hosts}
           Still vulnerable hosts: ${apply.artifacts.ao_still_vulnerable_hosts}
           Rebooted hosts: ${apply.artifacts.ao_rebooted_hosts}
           Failed or unreachable hosts: ${apply.artifacts.ao_failed_hosts}
-          Hosts the triage step could not remediate: ${triage.output.not_remediable_hosts}
+          Hosts the triage step could not remediate: ${triage.result.content.not_remediable_hosts}
           status is "remediated" when every targeted host is remediated, "partially_remediated" when some are,
           otherwise "failed". Use only this data. Return only JSON that matches the response schema.
         responseSchema:
@@ -205,8 +205,8 @@ __automation_orchestrator_cve_remediation_definition:
         prompt: |
           Hosts are vulnerable to ${trigger.cve_id} (Red Hat severity ${cve_lookup.body.threat_severity}) but no fix is
           installable from their Satellite repositories.
-          Vulnerable hosts: ${triage.output.vulnerable_hosts}
-          Triage reasoning: ${triage.output.reasoning}
+          Vulnerable hosts: ${triage.result.content.vulnerable_hosts}
+          Triage reasoning: ${triage.result.content.reasoning}
           Host assessment: ${assess.artifacts.ao_hosts}
           Red Hat fixed releases for these RHEL versions: ${assess.artifacts.ao_cve_fixed_releases}
           Red Hat product states for these RHEL versions: ${assess.artifacts.ao_cve_product_states}
