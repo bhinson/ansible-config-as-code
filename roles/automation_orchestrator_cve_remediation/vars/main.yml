@@ -72,6 +72,8 @@ __automation_orchestrator_cve_remediation_definition:
       position: {x: 900, y: 300}
       parameters:
         llm_model_id: "{{ __orchestrator_cve_model.id }}"
+        # runtime LLM credential (AO configure guide: workflow credentials are set on the node, not the integration)
+        credential_id: "{{ __orchestrator_cve_llm_credential_id }}"
         tool_selection_strategy: NONE
         prompt: |
           You are a Red Hat Enterprise Linux vulnerability triage assistant. Decide which hosts are vulnerable to
@@ -165,6 +167,8 @@ __automation_orchestrator_cve_remediation_definition:
       position: {x: 2100, y: 150}
       parameters:
         llm_model_id: "{{ __orchestrator_cve_model.id }}"
+        # runtime LLM credential (AO configure guide: workflow credentials are set on the node, not the integration)
+        credential_id: "{{ __orchestrator_cve_llm_credential_id }}"
         tool_selection_strategy: NONE
         prompt: |
           Write a short remediation report for ${trigger.cve_id} (Red Hat severity ${cve_lookup.body.threat_severity}).
@@ -195,6 +199,8 @@ __automation_orchestrator_cve_remediation_definition:
       position: {x: 1500, y: 450}
       parameters:
         llm_model_id: "{{ __orchestrator_cve_model.id }}"
+        # runtime LLM credential (AO configure guide: workflow credentials are set on the node, not the integration)
+        credential_id: "{{ __orchestrator_cve_llm_credential_id }}"
         tool_selection_strategy: NONE
         prompt: |
           Hosts are vulnerable to ${trigger.cve_id} (Red Hat severity ${cve_lookup.body.threat_severity}) but no fix is

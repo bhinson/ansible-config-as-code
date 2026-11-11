@@ -37,6 +37,15 @@
          if automation_orchestrator_cve_remediation_platform_credential_name | length > 0
          else __orchestrator_cve_platform.management_credential_id | default('', true) }}
 
+- name: Lookups | Pick the LLM Provider credential the agent steps use at run time
+  ansible.builtin.set_fact:
+    __orchestrator_cve_llm_credential_id: >-
+      {{ (__orchestrator_cve_lookups.results[2].json.resources
+          | selectattr('name', 'equalto', automation_orchestrator_cve_remediation_llm_credential_name)
+          | map(attribute='id') | first | default(''))
+         if automation_orchestrator_cve_remediation_llm_credential_name | length > 0
+         else __orchestrator_cve_llm.management_credential_id | default('', true) }}
+
 - name: Lookups | Check the project, integrations and credential exist
   ansible.builtin.assert:
     that:
@@ -44,13 +53,15 @@
       - __orchestrator_cve_platform | length > 0
       - __orchestrator_cve_llm | length > 0
       - __orchestrator_cve_platform_credential_id | length > 0
+      - __orchestrator_cve_llm_credential_id | length > 0
     fail_msg: >-
       Missing in Automation Orchestrator: project '{{ automation_orchestrator_cve_remediation_project_name or 'default' }}'
       ({{ 'found' if __orchestrator_cve_project else 'missing' }}), Ansible Automation Platform integration
       '{{ automation_orchestrator_cve_remediation_platform_integration_name }}'
       ({{ 'found' if __orchestrator_cve_platform else 'missing' }}), LLM provider integration
       '{{ automation_orchestrator_cve_remediation_llm_integration_name }}' ({{ 'found' if __orchestrator_cve_llm else 'missing' }}),
-      credential for launching jobs ({{ 'found' if __orchestrator_cve_platform_credential_id else 'missing' }}).
+      credential for launching jobs ({{ 'found' if __orchestrator_cve_platform_credential_id else 'missing' }}), LLM
+      Provider credential for the agent steps ({{ 'found' if __orchestrator_cve_llm_credential_id else 'missing' }}).
       Run the automation_orchestrator_configuration and automation_orchestrator_llm_integration roles first.
     quiet: true
 

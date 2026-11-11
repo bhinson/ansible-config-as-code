@@ -36,6 +36,9 @@ automation_orchestrator_cve_remediation_platform_credential_name: ""
 automation_orchestrator_cve_remediation_llm_integration_name: LLM provider
 # Provider model ID; empty = the integration's default model, else its first enabled model
 automation_orchestrator_cve_remediation_llm_model: ""
+# AO "LLM Provider" credential the agent steps use at run time (the integration's own credential is only for health
+# checks and discovery); empty = the LLM integration's management credential
+automation_orchestrator_cve_remediation_llm_credential_name: ""
 
 # --- AAP job templates the workflow launches ---
 automation_orchestrator_cve_remediation_organization_name: Default
