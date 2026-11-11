@@ -1,5 +1,7 @@
 ---
-# The AO workflow definition (schema 2.0.0). AO limits: a rendered agent prompt is at most 10,000 characters and an
+# The AO workflow definition (schema 2.0.0). Field names use the form AO stores (response_schema, not responseSchema),
+# so the role can compare this with the published version and spot edits made in the AO UI. Node positions are the
+# layout to keep (adjusted in the UI, version 5, 2026-11-11). AO limits: a rendered agent prompt is at most 10,000 characters and an
 # approval message at most 2,000, so prompts use the assess job's compact artifacts, not the raw CVE record.
 # ${...} expressions are resolved by AO at run time (AO reference guide:
 # trigger fields ${trigger.x}; REST API step ${id.body}; job template step ${id.artifacts}; Task Agent
@@ -51,7 +53,7 @@ __automation_orchestrator_cve_remediation_definition:
     - id: cve_lookup
       name: Look up the CVE in the Red Hat CVE database
       type: http_request
-      position: {x: 300, y: 300}
+      position: {x: 330, y: 274}
       parameters:
         method: GET
         url: "{{ automation_orchestrator_cve_remediation_security_data_url }}/cve/${trigger.cve_id}.json"
@@ -60,7 +62,7 @@ __automation_orchestrator_cve_remediation_definition:
     - id: assess
       name: Assess hosts (installed packages, fixes available from Satellite)
       type: aap_job_template
-      position: {x: 600, y: 300}
+      position: {x: 716, y: 223}
       parameters: >-
         {{ __automation_orchestrator_cve_remediation_job_template_common | combine({
              'job_template_name': automation_orchestrator_cve_remediation_assess_job_template,
@@ -70,7 +72,7 @@ __automation_orchestrator_cve_remediation_definition:
     - id: triage
       name: "[AI] Decide which hosts are vulnerable and fixable"
       type: agentic
-      position: {x: 900, y: 300}
+      position: {x: 1044, y: 326}
       parameters:
         llm_model_id: "{{ __orchestrator_cve_model.id }}"
         # runtime LLM credential (AO configure guide: workflow credentials are set on the node, not the integration)
@@ -110,7 +112,7 @@ __automation_orchestrator_cve_remediation_definition:
              advisories are their unique advisory IDs.
           7. reasoning is at most two sentences.
           Return only JSON that matches the response schema.
-        responseSchema:
+        response_schema:
           type: object
           required: [route, severity, vulnerable_hosts, remediable_hosts, remediable_hosts_limit, reasoning]
           properties:
@@ -129,7 +131,7 @@ __automation_orchestrator_cve_remediation_definition:
     - id: route
       name: Route on the triage decision
       type: switch
-      position: {x: 1200, y: 300}
+      position: {x: 1499, y: 216}
       parameters:
         cases:
           - port: case_0
@@ -143,7 +145,7 @@ __automation_orchestrator_cve_remediation_definition:
     - id: approve
       name: Approve installing the fix
       type: approval
-      position: {x: 1500, y: 150}
+      position: {x: 1863, y: 73}
       # built as one dict expression so decision_window stays an integer on ansible-core < 2.19
       parameters: >-
         {{ {'approver_groups': __orchestrator_cve_approver_groups,
@@ -154,7 +156,7 @@ __automation_orchestrator_cve_remediation_definition:
     - id: apply
       name: Apply the fix from Satellite and verify
       type: aap_job_template
-      position: {x: 1800, y: 150}
+      position: {x: 2245, y: 4}
       parameters: >-
         {{ __automation_orchestrator_cve_remediation_job_template_common | combine({
              'job_template_name': automation_orchestrator_cve_remediation_apply_job_template,
@@ -165,7 +167,7 @@ __automation_orchestrator_cve_remediation_definition:
     - id: report
       name: "[AI] Remediation report"
       type: agentic
-      position: {x: 2100, y: 150}
+      position: {x: 2672, y: 148}
       parameters:
         llm_model_id: "{{ __orchestrator_cve_model.id }}"
         # runtime LLM credential (AO configure guide: workflow credentials are set on the node, not the integration)
@@ -182,7 +184,7 @@ __automation_orchestrator_cve_remediation_definition:
           Hosts the triage step could not remediate: ${triage.result.content.not_remediable_hosts}
           status is "remediated" when every targeted host is remediated, "partially_remediated" when some are,
           otherwise "failed". Use only this data. Return only JSON that matches the response schema.
-        responseSchema:
+        response_schema:
           type: object
           required: [status, summary]
           properties:
@@ -196,7 +198,7 @@ __automation_orchestrator_cve_remediation_definition:
     - id: no_fix_report
       name: "[AI] No fix available report"
       type: agentic
-      position: {x: 1500, y: 450}
+      position: {x: 1958, y: 452}
       parameters:
         llm_model_id: "{{ __orchestrator_cve_model.id }}"
         # runtime LLM credential (AO configure guide: workflow credentials are set on the node, not the integration)
@@ -216,7 +218,7 @@ __automation_orchestrator_cve_remediation_definition:
           fixing advisory is not in the host's Satellite content view yet, or the host is not registered to Satellite)
           and recommend next steps, including any Red Hat mitigation. Use only this data. Return only JSON that matches
           the response schema.
-        responseSchema:
+        response_schema:
           type: object
           required: [summary, recommended_actions]
           properties:

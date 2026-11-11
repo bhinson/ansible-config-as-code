@@ -1,8 +1,10 @@
 ---
 # OpenAPI: POST /workflows/validate (WorkflowValidateRequest), POST /workflows (WorkflowCreate), PATCH /workflows/{id}
 # (WorkflowUpdate; a new definition creates a new version), POST /workflows/{id}/versions/{version}/publish.
-# Idempotency: the definition's SHA-256 is kept in the workflow labels; nothing is saved when it matches and the
-# current version is published.
+# Idempotency and drift: the role reads the workflow's current and published versions from AO and compares their
+# definitions with the one it generates (AO stores what it receives, with response_schema as the field name). Any
+# difference, including edits made in the AO UI, saves and publishes a new version with the generated definition.
+# The definition's SHA-256 is also kept in the labels, for traceability only.
 - name: Workflow | Fingerprint the desired definition
   ansible.builtin.set_fact:
     __orchestrator_cve_sha256: "{{ __automation_orchestrator_cve_remediation_definition | to_json(sort_keys=true) | hash('sha256') }}"
@@ -45,6 +47,33 @@
       managed-by: configuration-as-code
       definition-sha256: "{{ __orchestrator_cve_sha256 }}"
 
+- name: Workflow | Read the current and published versions
+  ansible.builtin.uri:
+    url: "{{ __orchestrator_cve_url }}/api/v1/workflows/{{ __orchestrator_cve_existing.id }}/versions/{{ __orchestrator_cve_version_item }}"
+    headers: "{{ __orchestrator_cve_headers }}"
+    ca_path: "{{ __orchestrator_cve_ca_file.path }}"
+    validate_certs: "{{ automation_orchestrator_cve_remediation_validate_certs | bool }}"
+  loop: >-
+    {{ ([__orchestrator_cve_existing.current_version, __orchestrator_cve_existing.published_version_number]
+        | select | unique | list) if __orchestrator_cve_existing | length > 0 else [] }}
+  loop_control:
+    loop_var: __orchestrator_cve_version_item
+  register: __orchestrator_cve_versions
+
+- name: Workflow | Compare them with the generated definition
+  ansible.builtin.set_fact:
+    # dict equality treats 300 and 300.0 alike, so positions saved by the UI as floats compare correctly
+    __orchestrator_cve_current_matches: >-
+      {{ (__orchestrator_cve_versions.results | default([])
+          | selectattr('__orchestrator_cve_version_item', 'equalto', __orchestrator_cve_existing.current_version | default(-1))
+          | map(attribute='json.workflow_definition') | first | default({}))
+         == __automation_orchestrator_cve_remediation_definition }}
+    __orchestrator_cve_published_matches: >-
+      {{ (__orchestrator_cve_versions.results | default([])
+          | selectattr('__orchestrator_cve_version_item', 'equalto', __orchestrator_cve_existing.published_version_number | default(-1))
+          | map(attribute='json.workflow_definition') | first | default({}))
+         == __automation_orchestrator_cve_remediation_definition }}
+
 - name: Workflow | Create the workflow
   ansible.builtin.uri:
     url: "{{ __orchestrator_cve_url }}/api/v1/workflows"
@@ -81,7 +110,7 @@
   register: __orchestrator_cve_update
   when:
     - __orchestrator_cve_existing | length > 0
-    - (__orchestrator_cve_existing.labels | default({}, true))['definition-sha256'] | default('') != __orchestrator_cve_sha256
+    - not (__orchestrator_cve_current_matches | bool)
   changed_when: true
 
 - name: Workflow | Work out the version to publish
@@ -92,8 +121,9 @@
       {{ __orchestrator_cve_create.json.current_version if __orchestrator_cve_create is changed
          else (__orchestrator_cve_update.json.current_version if __orchestrator_cve_update is changed
                else __orchestrator_cve_existing.current_version) }}
+    # already published: the published version is the generated definition and nothing new was saved
     __orchestrator_cve_published: >-
-      {{ (__orchestrator_cve_existing.published_version_number | default(none)) == __orchestrator_cve_existing.current_version | default(-1)
+      {{ __orchestrator_cve_published_matches | bool
          and __orchestrator_cve_update is not changed and __orchestrator_cve_create is not changed }}
 
 - name: Workflow | Publish the version
