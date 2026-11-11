@@ -1,10 +1,7 @@
 ---
-# Area platform_management: Galaxy credential order for the organizations in site_galaxy_credential_organizations.
-# Private hub mirrors first (local, fastest), then console.redhat.com, then public Galaxy ("Ansible Galaxy" is AAP's
-# built-in credential). Project syncs try them in this order.
+# Area platform_management: Galaxy credential list (site_galaxy_credentials, in order) for the organizations in
+# site_galaxy_credential_organizations. Note: ansible-galaxy queries every listed server for every collection and takes
+# the newest version found anywhere, so each extra server slows project syncs.
 aap_organizations__platform_management: >-
-  {{ site_galaxy_credential_organizations | map('combine', {'galaxy_credentials': [
-       'Private Automation Hub - certified', 'Private Automation Hub - validated', 'Private Automation Hub - published',
-       'Private Automation Hub - community', 'Red Hat Cloud Console - certified', 'Red Hat Cloud Console - validated',
-       'Ansible Galaxy']}) | list }}
+  {{ site_galaxy_credential_organizations | map('combine', {'galaxy_credentials': site_galaxy_credentials}) | list }}
 ...

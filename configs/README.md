@@ -47,6 +47,7 @@ ansible-playbook playbooks/initialize_automation_platform.yml -e @/path/to/site.
 | `site_automation_orchestrator_storage_class` | `""` (cluster default) | storage class for the AO PostgreSQL volume |
 | `site_private_automation_hub_url` | `https://aap.example.com` | your private automation hub (platform_management) |
 | `site_galaxy_credential_organizations` | `[{name: Default}]` | organizations whose Galaxy credential order is managed (platform_management) |
+| `site_galaxy_credentials` | private hub ×4, console.redhat.com ×2, Ansible Galaxy | the ordered list; private hub only is fastest once the mirrors hold everything (platform_management) |
 | `site_automation_hub_sync_repositories` | `[rh-certified, validated, community]` | hub repositories the scheduled job syncs (platform_management) |
 | `site_automation_hub_sync_rrule` | daily 02:00 UTC | when it runs; an RRULE with DTSTART (time zone in TZID) (platform_management) |
 

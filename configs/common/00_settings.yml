@@ -52,6 +52,17 @@ site_private_automation_hub_url: https://aap.example.com
 # Organizations whose Galaxy credential list is managed (the same list for each).
 site_galaxy_credential_organizations:
   - name: Default
+# Galaxy credentials for those organizations, in order (names of AAP credentials; "Ansible Galaxy" is AAP's built-in
+# one). Project syncs query every listed server, so a shorter list is faster: with complete private hub mirrors, the four
+# "Private Automation Hub - ..." entries alone avoid all external lookups (collections must then be mirrored first).
+site_galaxy_credentials:
+  - Private Automation Hub - certified
+  - Private Automation Hub - validated
+  - Private Automation Hub - published
+  - Private Automation Hub - community
+  - Red Hat Cloud Console - certified
+  - Red Hat Cloud Console - validated
+  - Ansible Galaxy
 # Hub repositories the scheduled job syncs, and when (an iCalendar RRULE with DTSTART; the time zone goes in TZID).
 site_automation_hub_sync_repositories: [rh-certified, validated, community]
 site_automation_hub_sync_rrule: "DTSTART;TZID=UTC:20260101T020000 RRULE:FREQ=DAILY;INTERVAL=1"
