@@ -2,7 +2,7 @@
 # automation_orchestrator_cve_remediation: add a CVE remediation workflow to a configured Automation Orchestrator (AO).
 # Assumes AO already has an Ansible Automation Platform (AAP) integration (automation_orchestrator_configuration) and a
 # large language model (LLM) provider integration (automation_orchestrator_llm_integration), and that AAP has the two
-# job templates below (configs/automation_platform/job_templates.yml).
+# job templates below (configs/cve_remediation/job_templates.yml).
 # Workflow: manual start form (CVE ID, optional host limit) -> Red Hat CVE lookup -> assess hosts (job template) ->
 # LLM triage -> route -> human approval -> apply the fix from Satellite (job template) -> LLM report.
 

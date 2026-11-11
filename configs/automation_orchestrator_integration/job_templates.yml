@@ -1,0 +1,103 @@
+---
+# Area automation_orchestrator_integration: connect AO to AAP (integration and single sign-on).
+controller_templates__automation_orchestrator_integration:
+  - name: Automation Orchestrator | Configure Ansible Automation Platform integration
+    description: >-
+      Allowlists, Ansible Automation Platform integration (job dispatch) and Ansible Automation Platform single sign-on
+      for Automation Orchestrator (role automation_orchestrator_configuration)
+    organization: "{{ site_organization }}"
+    project: Configuration as code - ansible-config-as-code
+    playbook: playbooks/automation_orchestrator_configuration.yml
+    inventory: Configuration as code - localhost
+    execution_environment: "{{ site_execution_environment }}"
+    credentials:
+      - Configuration as code - OpenShift API
+      - Configuration as code - Ansible Automation Platform
+    survey_enabled: true
+    survey_spec:
+      name: Automation Orchestrator Ansible Automation Platform integration
+      description: >-
+        Inputs for automation_orchestrator_configuration (the Automation Orchestrator URL, admin password, Ansible
+        Automation Platform URL and certificate authority are discovered when empty)
+      spec:
+        - question_name: Automation Orchestrator namespace
+          variable: automation_orchestrator_configuration_namespace
+          type: text
+          required: true
+          default: automation-orchestrator
+        - question_name: Integration name
+          variable: automation_orchestrator_configuration_integration_name
+          type: text
+          required: true
+          default: Ansible Automation Platform
+        - question_name: Integration Ansible Automation Platform token
+          question_description: >-
+            Ansible Automation Platform OAuth token that Automation Orchestrator stores for health checks and discovery
+            (or give a username and password below)
+          variable: automation_orchestrator_configuration_integration_token
+          type: password
+          required: false
+        - question_name: Integration Ansible Automation Platform username
+          variable: automation_orchestrator_configuration_integration_username
+          type: text
+          required: false
+          default: ""
+        - question_name: Integration Ansible Automation Platform password
+          variable: automation_orchestrator_configuration_integration_password
+          type: password
+          required: false
+        - question_name: Set up Ansible Automation Platform single sign-on
+          variable: automation_orchestrator_configuration_configure_single_sign_on
+          type: multiplechoice
+          choices: ["true", "false"]
+          required: true
+          default: "true"
+        - question_name: OAuth application organization
+          variable: automation_orchestrator_configuration_oauth_app_organization
+          type: text
+          required: true
+          default: "{{ site_organization }}"
+        - question_name: Skip TLS verification for the identity provider
+          question_description: >-
+            Automation Orchestrator identity providers have no certificate authority field; the docs say to enable this
+            for internally signed certificates
+          variable: automation_orchestrator_configuration_identity_provider_disable_tls_verify
+          type: multiplechoice
+          choices: ["true", "false"]
+          required: true
+          default: "true"
+        - question_name: Recreate the OAuth application
+          question_description: Only if the application exists but Automation Orchestrator doesn't use it (invalidates the old client secret)
+          variable: automation_orchestrator_configuration_recreate_oauth_app
+          type: multiplechoice
+          choices: ["false", "true"]
+          required: true
+          default: "false"
+        - question_name: Verify TLS certificates from this job
+          question_description: The job's calls to the cluster API, Automation Orchestrator and Ansible Automation Platform
+          variable: automation_orchestrator_configuration_validate_certs
+          type: multiplechoice
+          choices: ["true", "false"]
+          required: true
+          default: "true"
+        - question_name: Automation Orchestrator verifies the Ansible Automation Platform certificate
+          question_description: >-
+            false sets insecure_skip_tls_verify on the integration; prefer supplying the certificate authority bundle below
+          variable: automation_orchestrator_configuration_integration_validate_certs
+          type: multiplechoice
+          choices: ["true", "false"]
+          required: true
+          default: "true"
+        - question_name: Certificate authority bundle (PEM)
+          question_description: Empty = OpenShift ingress certificate authority
+          variable: automation_orchestrator_configuration_ca_certificate
+          type: textarea
+          required: false
+          default: ""
+        - question_name: Extra integration hosts
+          question_description: Comma-separated extra hostnames to allow for integrations (the Ansible Automation Platform host is always added)
+          variable: automation_orchestrator_configuration_integration_extra_allowed_hosts
+          type: text
+          required: false
+          default: ""
+...

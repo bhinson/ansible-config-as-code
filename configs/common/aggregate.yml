@@ -1,0 +1,15 @@
+---
+# Every area folder defines its objects under "<dispatch variable>__<area>" (for example controller_templates__cve_remediation).
+# These variables merge whatever areas were loaded (playbooks/tasks/load_configuration.yml loads common plus the areas in
+# site_configuration_areas) into the names infra.aap_configuration.dispatch reads. Evaluated lazily, so an area that
+# isn't loaded contributes nothing. Add a line here when an area uses a new dispatch variable.
+controller_credential_types: "{{ query('ansible.builtin.vars', *query('ansible.builtin.varnames', '^controller_credential_types__')) | flatten }}"
+controller_credentials: "{{ query('ansible.builtin.vars', *query('ansible.builtin.varnames', '^controller_credentials__')) | flatten }}"
+controller_projects: "{{ query('ansible.builtin.vars', *query('ansible.builtin.varnames', '^controller_projects__')) | flatten }}"
+controller_inventories: "{{ query('ansible.builtin.vars', *query('ansible.builtin.varnames', '^controller_inventories__')) | flatten }}"
+controller_inventory_sources: "{{ query('ansible.builtin.vars', *query('ansible.builtin.varnames', '^controller_inventory_sources__')) | flatten }}"
+controller_hosts: "{{ query('ansible.builtin.vars', *query('ansible.builtin.varnames', '^controller_hosts__')) | flatten }}"
+controller_templates: "{{ query('ansible.builtin.vars', *query('ansible.builtin.varnames', '^controller_templates__')) | flatten }}"
+controller_schedules: "{{ query('ansible.builtin.vars', *query('ansible.builtin.varnames', '^controller_schedules__')) | flatten }}"
+aap_organizations: "{{ query('ansible.builtin.vars', *query('ansible.builtin.varnames', '^aap_organizations__')) | flatten }}"
+...

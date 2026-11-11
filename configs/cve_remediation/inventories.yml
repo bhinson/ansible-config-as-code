@@ -1,0 +1,11 @@
+---
+# Managed hosts for the CVE remediation workflow. A small static sample; replace with a dynamic inventory
+# (site_cve_remediation_sample_hosts lists the hosts).
+controller_inventories__cve_remediation:
+  - name: CVE remediation - sample hosts
+    description: Sample RHEL hosts registered to Satellite, for the Automation Orchestrator CVE remediation workflow
+    organization: "{{ site_organization }}"
+
+controller_hosts__cve_remediation: >-
+  {{ site_cve_remediation_sample_hosts | map('combine', {'inventory': 'CVE remediation - sample hosts'}) | list }}
+...

@@ -1,5 +1,6 @@
 ---
-# Uses kubernetes.core (Red Hat certified) for cluster objects, and ansible.builtin.uri for the Automation Orchestrator (AO)
+# Uses redhat.openshift (applies objects) and kubernetes.core (lookups), both Red Hat certified, for cluster
+# objects, and ansible.builtin.uri for the Automation Orchestrator (AO)
 # and Ansible Automation Platform (AAP) REST APIs: no certified collection covers AO, and the Ansible
 # Automation Platform OAuth client secret is only returned by the create call.
 # Cluster authentication: K8S_AUTH_* environment variables (job credential).
@@ -8,6 +9,8 @@
 - name: Main | Configure Automation Orchestrator
   module_defaults:
     group/kubernetes.core.k8s:
+      validate_certs: "{{ automation_orchestrator_configuration_validate_certs | bool }}"
+    redhat.openshift.k8s:
       validate_certs: "{{ automation_orchestrator_configuration_validate_certs | bool }}"
   block:
     - name: Main | Discover settings from the cluster and job credentials

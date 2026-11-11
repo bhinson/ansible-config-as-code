@@ -1,0 +1,25 @@
+---
+# Area platform_management: keep the private automation hub's repositories in sync with their remotes.
+controller_templates__platform_management:
+  - name: Automation hub | Sync collection repositories
+    description: >-
+      Sync the private automation hub repositories in site_automation_hub_sync_repositories from their remotes
+      (console.redhat.com, Galaxy); only new content is downloaded (playbook sync_automation_hub.yml)
+    organization: "{{ site_organization }}"
+    project: Configuration as code - ansible-config-as-code
+    playbook: playbooks/sync_automation_hub.yml
+    inventory: Configuration as code - localhost
+    execution_environment: "{{ site_execution_environment }}"
+    credentials:
+      - Configuration as code - Ansible Automation Platform
+    extra_vars:
+      sync_automation_hub_repositories: "{{ site_automation_hub_sync_repositories }}"
+
+controller_schedules__platform_management:
+  - name: Automation hub | Scheduled collection sync
+    description: Runs "Automation hub | Sync collection repositories" (site_automation_hub_sync_rrule)
+    unified_job_template: Automation hub | Sync collection repositories
+    organization: "{{ site_organization }}"
+    rrule: "{{ site_automation_hub_sync_rrule }}"
+    enabled: true
+...

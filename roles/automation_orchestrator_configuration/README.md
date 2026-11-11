@@ -25,7 +25,7 @@ What it does (AO 2026.8 docs in brackets):
 
 ## Requirements
 
-- Collections: `kubernetes.core` (Red Hat certified). AO and AAP REST calls use `ansible.builtin.uri`: there's no
+- Collections: `redhat.openshift` (Red Hat certified; applies objects) and `kubernetes.core` (Red Hat certified; lookups). AO and AAP REST calls use `ansible.builtin.uri`: there's no
   certified AO collection, and the OAuth client secret only comes back from the raw create call.
 - Credentials (in AAP, attach both to the job template):
   - cluster: `K8S_AUTH_HOST` / `K8S_AUTH_API_KEY` / `K8S_AUTH_SSL_CA_CERT` (custom type *OpenShift API (configuration as code)*)

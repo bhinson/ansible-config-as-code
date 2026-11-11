@@ -1,0 +1,16 @@
+---
+# Localhost inventory for API-driven configuration as code jobs, sourced from this repo's inventory/hosts.yml.
+controller_inventories__common:
+  - name: Configuration as code - localhost
+    description: Control-node-only inventory for configuration-as-code jobs
+    organization: "{{ site_organization }}"
+
+controller_inventory_sources__common:
+  - name: Configuration as code - localhost (repo)
+    inventory: Configuration as code - localhost
+    source: scm
+    source_project: Configuration as code - ansible-config-as-code
+    source_path: inventory/hosts.yml
+    overwrite: true
+    update_on_launch: true
+...

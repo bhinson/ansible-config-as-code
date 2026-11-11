@@ -1,7 +1,7 @@
 ---
 # Initialize Ansible Automation Platform (AAP) so it can apply this repo's configuration itself. Needs only ansible-core
 # (ansible.builtin.uri against the documented AAP REST API); no certified collections on the machine running it.
-# Creates, if missing, the objects needed to bootstrap (names and the credential type come from configs/automation_platform/):
+# Creates, if missing, the objects needed to bootstrap (names and the credential type come from configs/common/):
 #   1. credential type "OpenShift API (configuration as code)"
 #   2. credentials "Configuration as code - OpenShift API" and "Configuration as code - Ansible Automation Platform"
 #      (secrets set from the inputs below; re-applied on every run unless initialize_automation_platform_update_secrets=false)
@@ -11,13 +11,14 @@
 #      (playbook configure_automation_platform.yml, the AAP credential, the site_* values as extra vars;
 #      the extra vars are refreshed on every run)
 # then launches that job template and waits (initialize_automation_platform_launch). AAP installs the certified collections
-# during project sync with the organization's console.redhat.com credential, and its run creates everything else.
+# during project sync with the organization's console.redhat.com credential, and its run creates everything else in
+# configs/common and the areas listed in site_configuration_areas.
 #
 # Inputs (environment variables, e.g. from scripts/env.sh, or the matching extra vars):
 #   AAP_HOSTNAME (gateway URL), AAP_TOKEN (OAuth2 token of an AAP administrator), AAP_VALIDATE_CERTS (default true),
 #   AAP_CA_FILE (optional PEM bundle that signed the gateway certificate; falls back to SSL_CERT_FILE)
 #   K8S_AUTH_HOST, K8S_AUTH_API_KEY, K8S_AUTH_SSL_CA_CERT (path to the cluster API CA bundle, PEM)
-#   site values: -e @/path/to/site.yml (see configs/automation_platform/README.md, "Site settings")
+#   site values: -e @/path/to/site.yml (see configs/README.md, "Site settings")
 # Usage:  ansible-playbook playbooks/initialize_automation_platform.yml -e @/path/to/site.yml
 - name: Initialize Ansible Automation Platform for configuration as code
   hosts: localhost
@@ -44,11 +45,8 @@
     __initialize_headers:
       Authorization: "Bearer {{ initialize_automation_platform_token }}"
   tasks:
-    - name: Initialize | Load the repo's configuration data (site values from -e @site.yml override the examples)
-      ansible.builtin.include_vars:
-        dir: "{{ playbook_dir }}/../configs/automation_platform"
-        extensions: [yml]
-        ignore_unknown_extensions: true
+    - name: Initialize | Load configs/common and the selected areas (site values from -e @site.yml override the examples)
+      ansible.builtin.include_tasks: tasks/load_configuration.yml
 
     - name: Initialize | Collect the names and site values to use
       ansible.builtin.set_fact:
@@ -306,7 +304,7 @@
         body_format: json
         body: >-
           {{ {'name': initialize_automation_platform_job_template,
-              'description': 'Apply configs/automation_platform from this repo with infra.aap_configuration.dispatch',
+              'description': 'Apply configs/ from this repo (common and the selected areas) with infra.aap_configuration.dispatch',
               'project': __initialize_project_id | int, 'playbook': 'playbooks/configure_automation_platform.yml',
               'inventory': (__initialize_inventory_create.json.id if __initialize_inventory_create is changed
                             else __initialize_object_lookups.results[1].json.results[0].id) | int,

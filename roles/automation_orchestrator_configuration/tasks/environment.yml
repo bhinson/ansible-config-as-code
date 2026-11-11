@@ -15,7 +15,7 @@
              | map('trim') | select | list)) | unique }}
 
 - name: Environment | Patch Automation Orchestrator deployments
-  kubernetes.core.k8s:
+  redhat.openshift.k8s:  # noqa: fqcn[canonical]
     state: patched
     merge_type: strategic-merge
     api_version: apps/v1

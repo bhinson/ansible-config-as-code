@@ -3,7 +3,7 @@
 # In Ansible Automation Platform (AAP), job template credentials supply them instead:
 #  - "Red Hat Ansible Automation Platform" injects aap_hostname / aap_token / aap_validate_certs as extra vars
 #    (which override these) plus AAP_* environment variables.
-#  - "OpenShift API (configuration as code)" (custom type in configs/automation_platform/credential_types.yml) injects K8S_AUTH_HOST,
+#  - "OpenShift API (configuration as code)" (custom type in configs/common/credential_types.yml) injects K8S_AUTH_HOST,
 #    K8S_AUTH_API_KEY and K8S_AUTH_SSL_CA_CERT. The managed "OpenShift or Kubernetes API Bearer Token" type
 #    injects nothing into jobs (container groups only), so don't use it for playbooks.
 

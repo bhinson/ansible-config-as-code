@@ -12,7 +12,7 @@ Installs Red Hat Automation Orchestrator (AO) on OpenShift:
 
 A pre-flight assert fails the run if `(2 backend + 2 worker + background_worker_max) x 30 + 20 > max_connections`.
 
-Uses `kubernetes.core` (Red Hat certified). Authentication comes from `K8S_AUTH_HOST`, `K8S_AUTH_API_KEY`, `K8S_AUTH_SSL_CA_CERT`.
+Uses `redhat.openshift` (Red Hat certified; applies objects) and `kubernetes.core` (Red Hat certified; lookups). Authentication comes from `K8S_AUTH_HOST`, `K8S_AUTH_API_KEY`, `K8S_AUTH_SSL_CA_CERT`.
 
 ## Connecting Ansible Automation Platform
 

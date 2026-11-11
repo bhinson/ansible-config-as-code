@@ -1,6 +1,6 @@
 ---
 - name: Operator | Create namespace, OperatorGroup (AllNamespaces) and Subscription
-  kubernetes.core.k8s:
+  redhat.openshift.k8s:  # noqa: fqcn[canonical]
     state: present
     apply: true
     template: operator.yml.j2

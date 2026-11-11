@@ -1,0 +1,95 @@
+---
+# Area automation_orchestrator_llm_integration: connect AO to a large language model (LLM) provider.
+controller_templates__automation_orchestrator_llm_integration:
+  - name: Automation Orchestrator | Configure LLM provider integration
+    description: >-
+      Connect Automation Orchestrator to an OpenAI API-compatible large language model provider for workflow agent
+      nodes (role automation_orchestrator_llm_integration)
+    organization: "{{ site_organization }}"
+    project: Configuration as code - ansible-config-as-code
+    playbook: playbooks/automation_orchestrator_llm_integration.yml
+    inventory: Configuration as code - localhost
+    execution_environment: "{{ site_execution_environment }}"
+    credentials:
+      - Configuration as code - OpenShift API
+    survey_enabled: true
+    survey_spec:
+      name: Automation Orchestrator LLM provider integration
+      description: >-
+        Inputs for automation_orchestrator_llm_integration (the Automation Orchestrator URL, admin password and
+        certificate authority are discovered from the cluster)
+      spec:
+        - question_name: Automation Orchestrator namespace
+          variable: automation_orchestrator_llm_integration_namespace
+          type: text
+          required: true
+          default: automation-orchestrator
+        - question_name: Integration name
+          variable: automation_orchestrator_llm_integration_name
+          type: text
+          required: true
+          default: LLM provider
+        - question_name: Provider
+          question_description: Provider backend type; red_hat_ai and custom need a base URL
+          variable: automation_orchestrator_llm_integration_provider
+          type: multiplechoice
+          choices: [custom, red_hat_ai, openai, anthropic, gemini]
+          required: true
+          default: custom
+        - question_name: Base URL
+          question_description: OpenAI v1 API-compatible endpoint, for example https://llm.example.com/v1
+          variable: automation_orchestrator_llm_integration_base_url
+          type: text
+          required: false
+          default: ""
+        - question_name: API key
+          question_description: Stored in Automation Orchestrator as an LLM Provider credential (health checks and model discovery)
+          variable: automation_orchestrator_llm_integration_api_key
+          type: password
+          required: true
+        - question_name: Enabled models
+          question_description: Comma-separated provider model IDs to enable; empty = every discovered model
+          variable: automation_orchestrator_llm_integration_enabled_models
+          type: text
+          required: false
+          default: ""
+        - question_name: Default model
+          question_description: Provider model ID to make the default; empty = leave as is
+          variable: automation_orchestrator_llm_integration_default_model
+          type: text
+          required: false
+          default: ""
+        - question_name: Scope
+          variable: automation_orchestrator_llm_integration_scope
+          type: multiplechoice
+          choices: [global, project]
+          required: true
+          default: global
+        - question_name: Automation Orchestrator verifies the provider certificate
+          question_description: false sets insecure_skip_tls_verify on the integration; prefer the certificate authority bundle below
+          variable: automation_orchestrator_llm_integration_provider_validate_certs
+          type: multiplechoice
+          choices: ["true", "false"]
+          required: true
+          default: "true"
+        - question_name: Provider certificate authority bundle (PEM)
+          question_description: Only for internally signed provider certificates; empty = Automation Orchestrator's default trust
+          variable: automation_orchestrator_llm_integration_provider_ca_certificate
+          type: textarea
+          required: false
+          default: ""
+        - question_name: Allow plain HTTP
+          variable: automation_orchestrator_llm_integration_allow_http
+          type: multiplechoice
+          choices: ["false", "true"]
+          required: true
+          default: "false"
+        - question_name: Verify TLS certificates from this job
+          question_description: The job's calls to the cluster API and Automation Orchestrator
+          variable: automation_orchestrator_llm_integration_validate_certs
+          type: multiplechoice
+          choices: ["true", "false"]
+          required: true
+          default: "true"
+
+...

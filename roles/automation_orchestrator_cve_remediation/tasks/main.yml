@@ -1,5 +1,6 @@
 ---
-# Uses kubernetes.core (Red Hat certified) to discover AO from the cluster, and ansible.builtin.uri for the AO REST API
+# Uses redhat.openshift (applies objects) and kubernetes.core (lookups), both Red Hat certified, to discover AO from
+# the cluster, and ansible.builtin.uri for the AO REST API
 # (no certified collection covers AO). Request shapes come from the OpenAPI specification AO serves at
 # /api_docs/v1/openapi.json; step output expressions follow the AO reference guide ("Node type catalog").
 # Cluster authentication: K8S_AUTH_* environment variables (job credential).
@@ -7,6 +8,8 @@
 - name: Main | Add the CVE remediation workflow to Automation Orchestrator
   module_defaults:
     group/kubernetes.core.k8s:
+      validate_certs: "{{ automation_orchestrator_cve_remediation_validate_certs | bool }}"
+    redhat.openshift.k8s:
       validate_certs: "{{ automation_orchestrator_cve_remediation_validate_certs | bool }}"
   block:
     - name: Main | Discover Automation Orchestrator

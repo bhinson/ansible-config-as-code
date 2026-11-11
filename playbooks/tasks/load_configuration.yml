@@ -1,0 +1,40 @@
+---
+# Load configs/common plus the selected area folders. Used by configure_automation_platform.yml,
+# initialize_automation_platform.yml and cleanup_automation_platform.yml.
+# Inputs: site_configuration_areas (list or comma-separated string; default in configs/common/00_settings.yml, extra vars
+# override it), __configuration_load_common (default true), __configuration_skip_areas (default []).
+- name: Load configuration | Common settings and objects
+  ansible.builtin.include_vars:
+    dir: "{{ playbook_dir }}/../configs/common"
+    extensions: [yml]
+  when: __configuration_load_common | default(true) | bool
+
+- name: Load configuration | Settings and merge rules only (common objects skipped)
+  ansible.builtin.include_vars:
+    file: "{{ playbook_dir }}/../configs/common/{{ item }}"
+  loop: [00_settings.yml, aggregate.yml]
+  when: not (__configuration_load_common | default(true) | bool)
+
+- name: Load configuration | Resolve the selected areas
+  ansible.builtin.set_fact:
+    __configuration_areas: >-
+      {{ ((site_configuration_areas.split(',') if site_configuration_areas is string else site_configuration_areas)
+          | map('trim') | select | reject('in', __configuration_skip_areas | default([])) | list) }}
+
+- name: Load configuration | Check the areas exist
+  ansible.builtin.assert:
+    that: "(playbook_dir ~ '/../configs/' ~ item) is directory"
+    fail_msg: "Unknown area '{{ item }}' in site_configuration_areas (no folder configs/{{ item }})"
+    quiet: true
+  loop: "{{ __configuration_areas }}"
+
+- name: Load configuration | Area objects
+  ansible.builtin.include_vars:
+    dir: "{{ playbook_dir }}/../configs/{{ item }}"
+    extensions: [yml]
+  loop: "{{ __configuration_areas }}"
+
+- name: Load configuration | Report
+  ansible.builtin.debug:
+    msg: "Areas: {{ __configuration_areas }}{{ '' if __configuration_load_common | default(true) | bool else ' (common objects skipped)' }}"
+...

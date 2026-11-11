@@ -1,0 +1,129 @@
+---
+# Area cve_remediation: the AO CVE remediation workflow and the job templates it launches (assess and apply have no
+# surveys: the workflow passes the limit and variables).
+controller_templates__cve_remediation:
+  - name: CVE remediation | Assess hosts
+    description: >-
+      Read-only. Collect installed packages and the fixes available from Satellite for one CVE and report them to
+      Automation Orchestrator (playbook cve_remediation_assess.yml)
+    organization: "{{ site_organization }}"
+    project: Configuration as code - ansible-config-as-code
+    playbook: playbooks/cve_remediation_assess.yml
+    inventory: CVE remediation - sample hosts
+    execution_environment: "{{ site_execution_environment }}"
+    credentials:
+      - "{{ site_machine_credential }}"
+    ask_limit_on_launch: true
+    ask_variables_on_launch: true
+
+  - name: CVE remediation | Apply fix
+    description: >-
+      Changes hosts. Install the minimal fix for one CVE from Satellite, reboot only if needed, and re-check; launched
+      only after the workflow's approval step (playbook cve_remediation_apply.yml)
+    organization: "{{ site_organization }}"
+    project: Configuration as code - ansible-config-as-code
+    playbook: playbooks/cve_remediation_apply.yml
+    inventory: CVE remediation - sample hosts
+    execution_environment: "{{ site_execution_environment }}"
+    credentials:
+      - "{{ site_machine_credential }}"
+    ask_limit_on_launch: true
+    ask_variables_on_launch: true
+
+  - name: Automation Orchestrator | Configure CVE remediation workflow
+    description: >-
+      Add or update the CVE remediation workflow in Automation Orchestrator (role
+      automation_orchestrator_cve_remediation)
+    organization: "{{ site_organization }}"
+    project: Configuration as code - ansible-config-as-code
+    playbook: playbooks/automation_orchestrator_cve_remediation.yml
+    inventory: Configuration as code - localhost
+    execution_environment: "{{ site_execution_environment }}"
+    # site_cve_remediation_workflow_credentials: OpenShift API credential to discover AO on the same cluster, or [] when
+    # the AO URL, admin password and CA are given in the survey (AO anywhere, AAP-only inputs)
+    credentials: "{{ site_cve_remediation_workflow_credentials }}"
+    survey_enabled: true
+    survey_spec:
+      name: Automation Orchestrator CVE remediation workflow
+      description: >-
+        Inputs for automation_orchestrator_cve_remediation (the Automation Orchestrator URL, admin password and
+        certificate authority are discovered from the cluster)
+      spec:
+        - question_name: Automation Orchestrator namespace
+          variable: automation_orchestrator_cve_remediation_namespace
+          type: text
+          required: true
+          default: automation-orchestrator
+        - question_name: Automation Orchestrator URL
+          question_description: Empty = discover the AO route in the namespace (needs the OpenShift API credential)
+          variable: automation_orchestrator_cve_remediation_orchestrator_url
+          type: text
+          required: false
+          default: ""
+        - question_name: Automation Orchestrator admin password
+          question_description: Empty = read the ao-admin-password secret from the cluster (needs the OpenShift API credential)
+          variable: automation_orchestrator_cve_remediation_admin_password
+          type: password
+          required: false
+        - question_name: Automation Orchestrator certificate authority bundle (PEM)
+          question_description: Empty = the OpenShift ingress certificate authority (needs the OpenShift API credential)
+          variable: automation_orchestrator_cve_remediation_orchestrator_ca_certificate
+          type: textarea
+          required: false
+          default: ""
+        - question_name: Workflow name
+          variable: automation_orchestrator_cve_remediation_workflow_name
+          type: text
+          required: true
+          default: CVE remediation
+        - question_name: Ansible Automation Platform integration name
+          question_description: The Automation Orchestrator integration that launches the job templates
+          variable: automation_orchestrator_cve_remediation_platform_integration_name
+          type: text
+          required: true
+          default: "{{ site_automation_orchestrator_platform_integration_name }}"
+        - question_name: LLM provider integration name
+          variable: automation_orchestrator_cve_remediation_llm_integration_name
+          type: text
+          required: true
+          default: LLM provider
+        - question_name: LLM model
+          question_description: Provider model ID; empty = the integration's default model, else its first enabled model
+          variable: automation_orchestrator_cve_remediation_llm_model
+          type: text
+          required: false
+          default: ""
+        - question_name: Approver groups
+          question_description: Comma-separated Automation Orchestrator groups whose members can approve the fix
+          variable: automation_orchestrator_cve_remediation_approver_groups
+          type: text
+          required: false
+          default: admins
+        - question_name: Approver users
+          question_description: Comma-separated Automation Orchestrator usernames who can approve the fix
+          variable: automation_orchestrator_cve_remediation_approver_users
+          type: text
+          required: false
+          default: ""
+        - question_name: Approval window (seconds)
+          question_description: After this, the request expires and the workflow stops without changes
+          variable: automation_orchestrator_cve_remediation_decision_window
+          type: integer
+          min: 300
+          max: 604800
+          required: true
+          default: 86400
+        - question_name: Reboot hosts when needed after the fix
+          variable: automation_orchestrator_cve_remediation_reboot
+          type: multiplechoice
+          choices: ["true", "false"]
+          required: true
+          default: "true"
+        - question_name: Verify TLS certificates from this job
+          question_description: The job's calls to the cluster API and Automation Orchestrator
+          variable: automation_orchestrator_cve_remediation_validate_certs
+          type: multiplechoice
+          choices: ["true", "false"]
+          required: true
+          default: "true"
+...

@@ -1,9 +1,11 @@
 ---
-# Uses kubernetes.core (Red Hat certified). Authentication comes from K8S_AUTH_* environment variables.
+# Uses redhat.openshift (applies objects) and kubernetes.core (lookups), both Red Hat certified,. Authentication comes from K8S_AUTH_* environment variables.
 
 - name: Main | Install Automation Orchestrator
   module_defaults:
     group/kubernetes.core.k8s:
+      validate_certs: "{{ openshift_automation_orchestrator_validate_certs | bool }}"
+    redhat.openshift.k8s:
       validate_certs: "{{ openshift_automation_orchestrator_validate_certs | bool }}"
   block:
     - name: Main | Normalize survey-style inputs (comma-separated strings -> lists)
@@ -29,7 +31,7 @@
       ansible.builtin.include_tasks: operator.yml
 
     - name: Main | Create instance namespace
-      kubernetes.core.k8s:
+      redhat.openshift.k8s:  # noqa: fqcn[canonical]
         state: present
         definition:
           apiVersion: v1
@@ -45,7 +47,7 @@
       when: openshift_automation_orchestrator_postgres_deploy | bool
 
     - name: Main | Apply AutomationOrchestrator instance
-      kubernetes.core.k8s:
+      redhat.openshift.k8s:  # noqa: fqcn[canonical]
         state: present
         apply: true
         template: automationorchestrator.yml.j2

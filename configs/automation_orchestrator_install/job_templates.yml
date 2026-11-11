@@ -1,0 +1,88 @@
+---
+# Area automation_orchestrator_install: install Automation Orchestrator (AO) on OpenShift.
+controller_templates__automation_orchestrator_install:
+  - name: Automation Orchestrator | Install on OpenShift
+    description: >-
+      Install the Automation Orchestrator operator, a PostgreSQL 15 database and an AutomationOrchestrator instance
+      (role openshift_automation_orchestrator)
+    organization: "{{ site_organization }}"
+    project: Configuration as code - ansible-config-as-code
+    playbook: playbooks/openshift_automation_orchestrator.yml
+    inventory: Configuration as code - localhost
+    execution_environment: "{{ site_execution_environment }}"
+    credentials:
+      - Configuration as code - OpenShift API
+    survey_enabled: true
+    survey_spec:
+      name: Automation Orchestrator install
+      description: Inputs for openshift_automation_orchestrator
+      spec:
+        - question_name: Namespace
+          question_description: Namespace for the Automation Orchestrator instance and its database
+          variable: openshift_automation_orchestrator_namespace
+          type: text
+          required: true
+          default: automation-orchestrator
+        - question_name: Operator channel
+          variable: openshift_automation_orchestrator_operator_channel
+          type: multiplechoice
+          choices: [stable, early-access]
+          required: true
+          default: stable
+        - question_name: Operator install plan approval
+          variable: openshift_automation_orchestrator_operator_approval
+          type: multiplechoice
+          choices: [Automatic, Manual]
+          required: true
+          default: Automatic
+        - question_name: Route hostname
+          question_description: Leave empty for the OpenShift-generated hostname
+          variable: openshift_automation_orchestrator_ingress_host
+          type: text
+          required: false
+          default: ""
+        - question_name: Hosts workflow HTTP nodes may call
+          question_description: Comma-separated internal hostnames (for example the Ansible Automation Platform gateway host)
+          variable: openshift_automation_orchestrator_allowed_hosts
+          type: text
+          required: false
+          default: "{{ site_automation_platform_gateway_host }}"
+        - question_name: PostgreSQL storage class
+          question_description: Empty = cluster default. Can't be changed after the database is created.
+          variable: openshift_automation_orchestrator_postgres_storage_class
+          type: text
+          required: false
+          default: "{{ site_automation_orchestrator_storage_class }}"
+        - question_name: PostgreSQL volume size
+          variable: openshift_automation_orchestrator_postgres_size
+          type: text
+          required: true
+          default: 10Gi
+        - question_name: PostgreSQL max_connections
+          question_description: (2 backend + 2 worker + background workers) x 30 + 20 must fit
+          variable: openshift_automation_orchestrator_postgres_max_connections
+          type: integer
+          min: 100
+          max: 1000
+          required: true
+          default: 300
+        - question_name: Max background workers
+          variable: openshift_automation_orchestrator_background_worker_max
+          type: integer
+          min: 1
+          max: 5
+          required: true
+          default: 2
+        - question_name: Verify the cluster API TLS certificate
+          question_description: Set to false only for testing against a cluster API with an untrusted certificate
+          variable: openshift_automation_orchestrator_validate_certs
+          type: multiplechoice
+          choices: ["true", "false"]
+          required: true
+          default: "true"
+        - question_name: Initial Automation Orchestrator admin password
+          question_description: Used only on first install; empty = generated and stored in Secret ao-admin-password
+          variable: openshift_automation_orchestrator_admin_password
+          type: password
+          required: false
+...

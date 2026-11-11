@@ -1,5 +1,6 @@
 ---
-# Uses kubernetes.core (Red Hat certified) to discover AO from the cluster, and ansible.builtin.uri for the AO REST API
+# Uses redhat.openshift (applies objects) and kubernetes.core (lookups), both Red Hat certified, to discover AO from
+# the cluster, and ansible.builtin.uri for the AO REST API
 # (no certified collection covers AO). Cluster authentication: K8S_AUTH_* environment variables (job credential).
 # A provider that resolves to a private IP address must also be in AO's integration allowlist
 # (APP_INTEGRATION_URL_ALLOWED_HOSTS): add its host to the automation_orchestrator_configuration role's
@@ -8,6 +9,8 @@
 - name: Main | Connect Automation Orchestrator to an LLM provider
   module_defaults:
     group/kubernetes.core.k8s:
+      validate_certs: "{{ automation_orchestrator_llm_integration_validate_certs | bool }}"
+    redhat.openshift.k8s:
       validate_certs: "{{ automation_orchestrator_llm_integration_validate_certs | bool }}"
   block:
     - name: Main | Discover Automation Orchestrator and check inputs

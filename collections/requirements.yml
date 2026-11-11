@@ -8,8 +8,8 @@ collections:
     version: ">=4.6.0"
   - name: ansible.eda             # Event-Driven Ansible objects
   - name: ansible.hub             # private automation hub objects
-  - name: redhat.openshift        # OpenShift-specific modules (routes, auth, templates)
-  - name: kubernetes.core         # generic k8s apply/info/wait (Red Hat certified, dependency of redhat.openshift)
+  - name: redhat.openshift        # Red Hat's OpenShift collection: k8s apply/patch tasks use redhat.openshift.k8s
+  - name: kubernetes.core         # k8s_info / k8s_exec (Red Hat certified; also a dependency of redhat.openshift)
   # --- Red Hat validated (console.redhat.com "validated") ---
   - name: infra.aap_configuration           # configuration as code (CaC) roles + dispatch for AAP 2.5+
   # --- extended CaC roles (filetree export/read, object_diff); validated if available, else Galaxy ---

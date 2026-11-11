@@ -22,7 +22,7 @@ What it does:
 
 ## Requirements
 
-- Collections: `kubernetes.core` (Red Hat certified). AO REST calls use `ansible.builtin.uri` (there's no certified
+- Collections: `redhat.openshift` (Red Hat certified; applies objects) and `kubernetes.core` (Red Hat certified; lookups). AO REST calls use `ansible.builtin.uri` (there's no certified
   AO collection).
 - Credential (in Ansible Automation Platform (AAP), attach to the job template): cluster access through the custom type
   *OpenShift API (configuration as code)* (`K8S_AUTH_HOST` / `K8S_AUTH_API_KEY` / `K8S_AUTH_SSL_CA_CERT`).

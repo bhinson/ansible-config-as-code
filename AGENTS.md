@@ -5,7 +5,7 @@ Repo conventions, layout and how to run things: [CLAUDE.md](CLAUDE.md). Skills l
 `.claude/skills` is a symlink to `skills/`). Read a skill only when its task comes up.
 
 ## Ansible Automation Platform
-- Exporting live Ansible Automation Platform (AAP) objects into `configs/automation_platform/` (back up as code, migrate, start managing existing objects): follow
+- Exporting live Ansible Automation Platform (AAP) objects into an area under `configs/` (back up as code, migrate, start managing existing objects): follow
   [skills/automation-platform-config-export/SKILL.md](skills/automation-platform-config-export/SKILL.md).
 - Single job template / workflow plus related objects between environments (pre-production to production): upstream
   [export-jt-related-pre-pro](https://github.com/redhat-cop/aap_configuration_extended/blob/devel/skills/export-jt-related-pre-pro/SKILL.md).
@@ -32,5 +32,5 @@ are linked, never copied, so they stay current.
   perl check in [CLAUDE.md](CLAUDE.md) (Conventions).
 - **Names, never IDs** for object references, selectors and extra vars.
 - Roles stay generic: no site hostnames, storage classes or org names in role defaults or skills. Site values go only
-  in `configs/automation_platform/00_settings.yml`.
+  in `configs/common/00_settings.yml`; areas are selected with `site_configuration_areas` (see `configs/README.md`).
 - Nothing secret is committed (see `.gitignore`).

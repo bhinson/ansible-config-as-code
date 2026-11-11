@@ -2,7 +2,8 @@
 # Remove from Ansible Automation Platform (AAP) everything that initialize_automation_platform.yml and the configure job
 # it launches create, so AAP returns to its state before initialization. Needs only ansible-core (ansible.builtin.uri
 # against the documented AAP REST API).
-# Deletes, by exact name from configs/automation_platform/ (and only in the site organization):
+# Deletes, by exact name from configs/common and the areas in site_configuration_areas (only in the site organization;
+# the platform_management area is never removed; cleanup_automation_platform_keep_common=true keeps configs/common):
 #   1. job templates (controller_templates) and workflow job templates (controller_workflows, if any)
 #   2. inventory sources, then inventories (their hosts and groups go with them)
 #   3. projects, credentials, then the custom credential types (global)
@@ -31,15 +32,18 @@
     cleanup_automation_platform_validate_certs: "{{ lookup('ansible.builtin.env', 'AAP_VALIDATE_CERTS') | default('true', true) }}"
     cleanup_automation_platform_ca_file: >-
       {{ lookup('ansible.builtin.env', 'AAP_CA_FILE') or lookup('ansible.builtin.env', 'SSL_CERT_FILE') }}
+    # true = remove only the selected areas' objects and keep the shared project, credentials, inventory and configure job template
+    cleanup_automation_platform_keep_common: false
     cleanup_automation_platform_wait_retries: 60
     cleanup_automation_platform_wait_delay: 5
     __cleanup_api: "{{ cleanup_automation_platform_url }}/api/controller/v2"
   tasks:
-    - name: Cleanup | Load the repo's configuration data (site values from -e @site.yml override the examples)
-      ansible.builtin.include_vars:
-        dir: "{{ playbook_dir }}/../configs/automation_platform"
-        extensions: [yml]
-        ignore_unknown_extensions: true
+    - name: Cleanup | Load the selected areas, and configs/common unless kept (site values from -e @site.yml)
+      ansible.builtin.include_tasks: tasks/load_configuration.yml
+      vars:
+        # platform_management manages AAP itself (adopted Galaxy credentials, organization settings): never removed here
+        __configuration_skip_areas: [platform_management]
+        __configuration_load_common: "{{ not (cleanup_automation_platform_keep_common | bool) }}"
 
     - name: Cleanup | Check inputs
       ansible.builtin.assert:

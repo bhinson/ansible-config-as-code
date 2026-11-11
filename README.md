@@ -2,7 +2,8 @@
 
 Configuration as code for OpenShift clusters running Ansible Automation Platform (AAP). Roles are generic; all
 site-specific values go in a vars file **outside this repo** that overrides the example values in
-`configs/automation_platform/00_settings.yml` (see `configs/automation_platform/README.md`, "Site settings").
+`configs/common/00_settings.yml` (see `configs/README.md`, "Site settings"). Configuration is split into **areas**
+(one per use case, plus an opt-in `platform_management` area for AAP itself); `site_configuration_areas` picks them.
 
 Modeled on the Red Hat Communities of Practice collections
 [infra.aap_configuration](https://github.com/redhat-cop/infra.aap_configuration) and
@@ -14,7 +15,8 @@ Red Hat certified collections first, Red Hat validated content second, and commu
 | Path | Purpose |
 |---|---|
 | `playbooks/openshift_automation_orchestrator.yml` | Install Red Hat Automation Orchestrator (AO) on OpenShift (operator, PostgreSQL, instance) |
-| `playbooks/configure_automation_platform.yml` | Apply AAP objects from `configs/automation_platform/` via `infra.aap_configuration.dispatch` |
+| `playbooks/configure_automation_platform.yml` | Apply `configs/common` and the selected areas via `infra.aap_configuration.dispatch` |
+| `playbooks/sync_automation_hub.yml` | Sync private automation hub repositories (scheduled; area platform_management) |
 | `playbooks/export_automation_platform.yml` | Export the live AAP configuration to YAML (`infra.aap_configuration_extended.filetree_create`) |
 | `playbooks/automation_orchestrator_configuration.yml` | Connect AO to AAP (allowlists, integration, single sign-on) |
 | `roles/openshift_automation_orchestrator/` | Install AO on OpenShift (generic) |
@@ -24,7 +26,7 @@ Red Hat certified collections first, Red Hat validated content second, and commu
 | `playbooks/automation_orchestrator_cve_remediation.yml` | Add the AO CVE remediation workflow (CVE lookup, LLM triage, approval, Satellite fix) |
 | `roles/automation_orchestrator_cve_remediation/` | Build and publish that workflow (generic) |
 | `playbooks/cve_remediation_assess.yml`, `cve_remediation_apply.yml` | Host playbooks the workflow launches (assess read-only; apply after approval) |
-| `configs/automation_platform/` | AAP configuration data: credential type, credentials, inventory, project, job templates with surveys |
+| `configs/` | AAP configuration data by area (see `configs/README.md`) |
 | `playbooks/initialize_automation_platform.yml` | Initialize AAP (ansible-core only) and launch the configure job template |
 | `playbooks/cleanup_automation_platform.yml` | Remove every AAP object this repo creates (job history is kept) |
 | `scripts/env.sh` | Loads tokens and CA bundle into the environment (source it) |
@@ -43,8 +45,8 @@ Red Hat certified collections first, Red Hat validated content second, and commu
 Everything runs in AAP. A small initialization playbook (ansible-core only, plain REST calls) creates what AAP needs to apply the
 rest of this repo, then launches it.
 
-1. Copy the `site_*` settings from `configs/automation_platform/00_settings.yml` into a vars file outside this repo and
-   change them (see `configs/automation_platform/README.md`, "Site settings").
+1. Copy the `site_*` settings from `configs/common/00_settings.yml` into a vars file outside this repo and change them,
+   including `site_configuration_areas` (see `configs/README.md`, "Site settings").
 2. Initialize AAP:
 
    ```bash
@@ -59,24 +61,25 @@ rest of this repo, then launches it.
    "Configuration as code - OpenShift API" and "Configuration as code - Ansible Automation Platform", the project,
    the inventory "Configuration as code - localhost", and the job template
    **"Configuration as code | Apply Ansible Automation Platform configuration"** (your site values become its extra vars),
-   then launches that job template, which creates every other object in `configs/automation_platform/`.
+   then launches that job template, which creates every other object in `configs/common` and the selected areas.
 3. Afterwards, change the configuration in git and re-launch that job template. Run the Automation Orchestrator job
-   templates in the order listed in `configs/automation_platform/README.md`.
+   templates in the order listed in `configs/README.md`.
 
 **Removing it again:** `ansible-playbook playbooks/cleanup_automation_platform.yml -e @/path/to/site.yml [--check]`
-deletes, by exact name from `configs/automation_platform/` and only in the site organization, the job templates,
+deletes, by exact name from `configs/common` and the selected areas (never `platform_management`) and only in the site
+organization, the job templates,
 inventory sources, inventories (with their hosts), the project, the credentials and the custom credential type, in that
 order. Playbook run history is kept (AAP itself removes project and inventory sync records along with their project or
 source); nothing else in AAP is touched. `--check` lists what it would delete. Objects that
 Automation Orchestrator roles create (in AO or the AAP gateway) are not removed.
 
 **Without the initialization playbook** (AAP UI): create the same objects by hand: the credential type (inputs and injectors from
-`configs/automation_platform/credential_types.yml`), the two credentials, a project for this repo, an inventory with one
+`configs/common/credential_types.yml`), the two credentials, a project for this repo, an inventory with one
 host `localhost` (variable `ansible_connection: local`), and a job template for `playbooks/configure_automation_platform.yml`
 with the "Configuration as code - Ansible Automation Platform" credential and your site values as extra vars. Launch it.
 
-Local test runs (`--check`) need ansible-core, `requirements.txt` and the collections, plus the tokens from
-`scripts/env.sh` (see its header).
+Local test runs (`--check`) need a Python 3.12 virtualenv with `requirements.txt` and `requirements-test.txt` (ansible-core
+pinned to the version in AAP's execution environment, 2.16), the collections, and the tokens from `scripts/env.sh`.
 
 ## Secrets
 

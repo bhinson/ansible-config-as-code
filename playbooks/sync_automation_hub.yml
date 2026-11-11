@@ -1,0 +1,28 @@
+---
+# Sync private automation hub repositories from their remotes (console.redhat.com, Galaxy) and wait for each sync.
+# The remotes, their tokens and requirements live on the hub; this job only triggers the syncs, using the AAP
+# credential's aap_hostname / aap_token / aap_validate_certs. Job template: "Automation hub | Sync collection
+# repositories" (scheduled by "Automation hub | Scheduled collection sync"); area platform_management.
+- name: Sync private automation hub repositories
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    # List or comma-separated string of hub repository names
+    sync_automation_hub_repositories: [rh-certified, validated, community]
+    # Seconds to wait for one repository (a first full sync of rh-certified takes about an hour)
+    sync_automation_hub_timeout: 10800
+  tasks:
+    - name: Sync | Sync each repository and wait
+      ansible.hub.collection_repository_sync:
+        name: "{{ item }}"
+        wait: true
+        interval: 30
+        timeout: "{{ sync_automation_hub_timeout | int }}"
+        ah_host: "{{ aap_hostname }}"
+        ah_token: "{{ aap_token }}"
+        validate_certs: "{{ aap_validate_certs | default(true) | bool }}"
+      loop: >-
+        {{ (sync_automation_hub_repositories.split(',') if sync_automation_hub_repositories is string
+            else sync_automation_hub_repositories) | map('trim') | select | list }}
+...

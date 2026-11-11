@@ -1,0 +1,17 @@
+---
+# Job template that applies configs/ (created first by playbooks/initialize_automation_platform.yml).
+controller_templates__common:
+  # Created first by playbooks/initialize_automation_platform.yml; managed here afterwards. Its extra vars are the site_*
+  # values of the run that applies this file, so the site values stay in AAP, not in the repo.
+  - name: Configuration as code | Apply Ansible Automation Platform configuration
+    description: Apply configs/ from this repo (common and the selected areas) with infra.aap_configuration.dispatch
+    organization: "{{ site_organization }}"
+    project: Configuration as code - ansible-config-as-code
+    playbook: playbooks/configure_automation_platform.yml
+    inventory: Configuration as code - localhost
+    execution_environment: "{{ site_execution_environment }}"
+    credentials:
+      - Configuration as code - Ansible Automation Platform
+    extra_vars: >-
+      {{ dict(query('ansible.builtin.varnames', '^site_') | zip(query('ansible.builtin.vars', *query('ansible.builtin.varnames', '^site_')))) }}
+...

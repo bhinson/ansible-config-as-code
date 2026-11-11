@@ -1,5 +1,5 @@
 ---
-controller_projects:
+controller_projects__common:
   - name: Configuration as code - ansible-config-as-code
     description: Configuration as code (roles/playbooks for OpenShift and Ansible Automation Platform)
     organization: "{{ site_organization }}"

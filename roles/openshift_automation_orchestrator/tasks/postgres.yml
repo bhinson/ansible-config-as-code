@@ -1,6 +1,6 @@
 ---
 - name: Postgres | Apply config, init script, service and StatefulSet
-  kubernetes.core.k8s:
+  redhat.openshift.k8s:  # noqa: fqcn[canonical]
     state: present
     apply: true
     template: postgres.yml.j2

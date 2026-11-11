@@ -1,7 +1,7 @@
 ---
 # Export the live Ansible Automation Platform configuration to YAML files
 # (infra.aap_configuration_extended.filetree_create).
-# Review the output, then copy what you want to manage into configs/automation_platform/. Secrets are exported as
+# Review the output, then copy what you want to manage into an area under configs/. Secrets are exported as
 # {{ vaulted_* }} placeholders and listed in env_variables.yml (git-ignored).
 #   source scripts/env.sh && ansible-playbook playbooks/export_automation_platform.yml [-e organization_filter=Default]
 - name: Export Ansible Automation Platform configuration as code
@@ -10,7 +10,7 @@
   vars:
     output_path: "{{ playbook_dir }}/../exports/automation_platform"
     omit_id: true                 # names, never IDs
-    flatten_output: true          # one file per object type, matches configs/automation_platform layout
+    flatten_output: true          # one file per object type, one file per object type
     secrets_as_variables: true
   roles:
     - role: infra.aap_configuration_extended.filetree_create

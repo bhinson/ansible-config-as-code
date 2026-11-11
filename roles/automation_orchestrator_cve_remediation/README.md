@@ -47,10 +47,10 @@ advisory's packages, so a wrong host in the limit is left alone.
 - AO with an Ansible Automation Platform (AAP) integration (role `automation_orchestrator_configuration`) and an LLM
   provider integration with an enabled model (role `automation_orchestrator_llm_integration`).
 - AAP job templates **CVE remediation | Assess hosts** and **CVE remediation | Apply fix**
-  (`configs/automation_platform/job_templates.yml`), with "prompt on launch" for limit and variables, a machine
+  (`configs/cve_remediation/job_templates.yml`), with "prompt on launch" for limit and variables, a machine
   credential with sudo on the hosts, and an inventory of RHEL hosts registered to Satellite.
 - AO must reach `access.redhat.com` (public, so no allowlist entry); the job execution environment needs it too.
-- Collections: `kubernetes.core` (Red Hat certified). AO REST calls use `ansible.builtin.uri`.
+- Collections: `redhat.openshift` (Red Hat certified; applies objects) and `kubernetes.core` (Red Hat certified; lookups). AO REST calls use `ansible.builtin.uri`.
 - Credential (in AAP, attach to the job template that runs this role): *OpenShift API (configuration as code)*.
 
 ## How the role works

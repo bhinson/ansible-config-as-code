@@ -10,6 +10,17 @@ aap_configuration_dispatcher_exclude_roles: []
 # (project URL, job template survey defaults, inventory hosts). See README.md "Site settings" for each one.
 # ---------------------------------------------------------------------------------------------------------------
 
+# Areas to apply (folders under configs/), as a list or comma-separated string. configs/common is always applied.
+# Use-case areas: automation_orchestrator_install, automation_orchestrator_integration,
+# automation_orchestrator_llm_integration, cve_remediation (needs an AO with an AAP and an LLM integration).
+# platform_management changes AAP itself (organization Galaxy credentials, private automation hub sync schedule) and
+# needs an AAP administrator token; it is opt-in and never removed by the cleanup playbook.
+site_configuration_areas:
+  - automation_orchestrator_install
+  - automation_orchestrator_integration
+  - automation_orchestrator_llm_integration
+  - cve_remediation
+
 # AAP organization that owns every object below (AAP's built-in "Default" works).
 site_organization: Default
 # Git URL and branch the AAP project syncs from (this repo; point it at your fork if you change the code).
@@ -25,9 +36,23 @@ site_automation_platform_gateway_host: aap.example.com
 site_automation_orchestrator_platform_integration_name: Ansible Automation Platform
 # Existing AAP machine credential (SSH user with sudo) for the hosts in the CVE remediation inventory.
 site_machine_credential: Linux hosts
+# Credentials for "Automation Orchestrator | Configure CVE remediation workflow": the OpenShift API credential lets it
+# discover AO on the same cluster; use [] when AO runs elsewhere and give its URL, admin password and CA in the survey.
+site_cve_remediation_workflow_credentials:
+  - Configuration as code - OpenShift API
 # Hosts for the "CVE remediation - sample hosts" inventory (RHEL, registered to Satellite, reachable over SSH).
 site_cve_remediation_sample_hosts:
   - name: rhel9.example.com
 # Storage class for the AO PostgreSQL volume (survey default); empty = cluster default. Can't change after install.
 site_automation_orchestrator_storage_class: ""
+
+# --- platform_management area (only used when that area is selected) ---
+# Private automation hub base URL (usually the AAP gateway URL); its repositories are served under /api/galaxy/content/.
+site_private_automation_hub_url: https://aap.example.com
+# Organizations whose Galaxy credential list is managed (the same list for each).
+site_galaxy_credential_organizations:
+  - name: Default
+# Hub repositories the scheduled job syncs, and when (an iCalendar RRULE with DTSTART; the time zone goes in TZID).
+site_automation_hub_sync_repositories: [rh-certified, validated, community]
+site_automation_hub_sync_rrule: "DTSTART;TZID=UTC:20260101T020000 RRULE:FREQ=DAILY;INTERVAL=1"
 ...

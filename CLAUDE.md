@@ -2,7 +2,7 @@
 
 Ansible roles and playbooks that recreate OpenShift and Ansible Automation Platform (AAP) configuration. **Roles must stay generic** (no site hostnames,
 storage classes, org names in defaults; discover from the cluster/credentials when possible).
-**The repo holds no site-specific values at all**: `configs/automation_platform/00_settings.yml` has documented example
+**The repo holds no site-specific values at all**: `configs/common/00_settings.yml` has documented example
 values (`example.com`); real values live in a site vars file outside the repo, passed with `-e @site.yml` when applying,
 and reach roles through job template survey defaults. Before every commit, check for site names (hostnames, domains,
 IP addresses, user/credential/organization names, storage classes) and secrets. Do not push unless asked.
@@ -37,16 +37,20 @@ certified/validated, private hub, Galaxy, in that order), so the repo holds no g
   `automation_orchestrator_cve_remediation` (AO CVE remediation workflow; its job templates run
   `playbooks/cve_remediation_assess.yml` / `cve_remediation_apply.yml` on managed hosts). One role per concern, each with
   its own job template and survey.
-- User inputs: AAP job template **surveys** (`configs/automation_platform/job_templates.yml`). Survey answers are strings, so roles accept
+- User inputs: AAP job template **surveys** (`configs/<area>/job_templates.yml`). Survey answers are strings, so roles accept
   comma-separated lists and `"true"`/`"false"`, and treat `""` as unset (`default(x, true)`).
-- `configs/automation_platform/` – AAP objects as data for `infra.aap_configuration.dispatch`.
+- `configs/` – AAP objects as data for `infra.aap_configuration.dispatch`, by **area**: `common/` (always), one folder per
+  use case, and opt-in `platform_management/` (AAP itself; never removed by cleanup). Each area defines
+  `<dispatch variable>__<area>`; `common/aggregate.yml` merges the loaded areas; `playbooks/tasks/load_configuration.yml`
+  loads `common` + `site_configuration_areas`. A new use case = a new folder (and a line in aggregate.yml for any new
+  dispatch variable). See `configs/README.md`.
 - `inventory/` – localhost-only inventory; connection vars read from the environment.
 
 ## Conventions (from infra.aap_configuration / aap_configuration_extended)
 - `.yml` extension; YAML documents start with `---` and end with `...`; 2-space indent; `{{ var }}` with spaces.
 - Role variables prefixed with the role name (`openshift_automation_orchestrator_*`); internal/loop vars prefixed `__`.
 - Task names prefixed with the file stem: `Postgres | Wait for ...`.
-- Always FQCNs (`kubernetes.core.k8s`, `ansible.builtin.include_vars`).
+- Always FQCNs (`redhat.openshift.k8s`, `ansible.builtin.include_vars`).
 - AAP 2.5+: `aap_hostname` is the **platform gateway** URL; prefer `aap_token` over username/password.
 - Variable names for AAP objects follow the dispatch role (`aap_organizations`, `aap_teams`, `aap_user_accounts`,
   `controller_projects`, `controller_templates`, `controller_workflows`, `eda_projects`, `hub_namespaces`, ...).
@@ -60,10 +64,15 @@ certified/validated, private hub, Galaxy, in that order), so the repo holds no g
   separate variable for what AO itself verifies (`insecure_skip_tls_verify` on integrations). Expose them in the
   survey; survey answers are strings, so always apply `| bool`. Prefer passing a CA bundle over disabling checks.
 - **Integers in API request bodies:** build the body (or parameter block) as one dict expression,
-  `body: "{{ {'id': x | int, ...} }}"`. On ansible-core < 2.19 (what AAP execution environments run) a standalone
-  `"{{ x | int }}"` renders to a string; booleans, lists and dicts keep their types either way. Test changes with an
-  ansible-core 2.18 virtualenv as well as the current one.
-- Idempotent re-runs: secrets created only when missing; `kubernetes.core.k8s` with `apply: true`.
+  `body: "{{ {'id': x | int, ...} }}"`. On ansible-core < 2.19 (AAP 2.7's execution environment runs 2.16) a standalone
+  `"{{ x | int }}"` renders to a string; booleans, lists and dicts keep their types either way.
+- **Local tests match the execution environment:** `.venv` uses Python 3.12 and `requirements-test.txt` (ansible-core
+  2.16.x, like ee-supported-rhel9 for AAP 2.7). Re-check the EE's version after AAP upgrades and move the pin with it.
+- **Cluster modules:** apply/patch tasks use `redhat.openshift.k8s` (Red Hat's OpenShift collection); lookups and exec use
+  `kubernetes.core.k8s_info` / `k8s_exec` (redhat.openshift has none). ansible-lint's `fqcn[canonical]` misreads
+  redhat.openshift's action-plugin redirect, hence `# noqa: fqcn[canonical]` on those tasks (verified: the module applies).
+  `module_defaults` sets `validate_certs` for both `group/kubernetes.core.k8s` and `redhat.openshift.k8s`.
+- Idempotent re-runs: secrets created only when missing; `redhat.openshift.k8s` with `apply: true`.
 - Lint target: `ansible-lint` profile `production`, `yamllint`.
 
 ## Running
@@ -71,23 +80,24 @@ certified/validated, private hub, Galaxy, in that order), so the repo holds no g
   REST API) creates the credential type, the two credentials, the project, the localhost inventory and the
   "Configuration as code | Apply Ansible Automation Platform configuration" job template, then launches it. Never assume
   certified collections on the CLI; AAP installs them during project sync. `--check` prints the plan and stops.
-- **Teardown:** `playbooks/cleanup_automation_platform.yml` deletes every object named in `configs/automation_platform/`
-  (exact names, site organization only; job history kept). When adding an object type to `configs/`, add it to the
+- **Teardown:** `playbooks/cleanup_automation_platform.yml` deletes every object named in `configs/common` and the selected
+  areas, never `platform_management` (exact names, site organization only; job history kept;
+  `cleanup_automation_platform_keep_common=true` removes only the selected areas). When adding an object type to `configs/`, add it to the
   cleanup's lookup list too.
 - **In AAP (normal):** project = this repo; job template per playbook (`playbooks/*.yml`, inventory with localhost);
-  credentials: **"OpenShift API (configuration as code)"** (custom type defined in `configs/automation_platform/credential_types.yml`) for `openshift_*`
+  credentials: **"OpenShift API (configuration as code)"** (custom type defined in `configs/common/credential_types.yml`) for `openshift_*`
   playbooks, "Red Hat Ansible Automation Platform" for `configure_automation_platform.yml` / `export_automation_platform.yml`.
   - The managed "OpenShift or Kubernetes API Bearer Token" type has **no injectors** (container groups only), so it
     gives playbooks nothing, hence the custom type with host, token and CA.
   - The AAP credential injects `aap_hostname`/`aap_token`/`aap_validate_certs` as extra vars plus `AAP_*` environment variables.
   - The EE must provide the collections' Python deps (`kubernetes` for kubernetes.core); check the
     EE before the first run.
-  - Credential type injectors in `configs/automation_platform/` must be tagged `!unsafe` so Ansible doesn't render them on load.
+  - Credential type injectors in `configs/` must be tagged `!unsafe` so Ansible doesn't render them on load.
 - **Locally (testing):**
   ```bash
   export CONFIGURATION_AS_CODE_SECRETS_FILE=/path/outside/repo/secrets.yml   # see scripts/env.sh header
   source scripts/env.sh
-  python3 -m pip install -r requirements.txt     # in a venv
+  python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt -r requirements-test.txt
   ansible-galaxy collection install -r collections/requirements.yml   # needs a hub source; AAP normally does this
   ansible-playbook playbooks/openshift_automation_orchestrator.yml --check
   ```
@@ -98,7 +108,7 @@ indexed in `AGENTS.md`; `.claude/skills` is a symlink to `skills/`. Skills in th
 hostnames or names; use `example.com`). Add new skills to `AGENTS.md` under the right group.
 **Don't copy upstream redhat-cop skills**: link them (in `AGENTS.md`/here) so they can't drift; only add a local skill
 for what's specific to this repo.
-- `skills/automation-platform-config-export` – capture the live AAP config into `configs/automation_platform/` with filetree_create.
+- `skills/automation-platform-config-export` – capture the live AAP config into `configs/` with filetree_create.
 - Upstream (linked): [ansible-jinja-no-self-ref](https://github.com/redhat-cop/aap_configuration_extended/blob/devel/skills/ansible-jinja-no-self-ref/SKILL.md),
   [export-jt-related-pre-pro](https://github.com/redhat-cop/aap_configuration_extended/blob/devel/skills/export-jt-related-pre-pro/SKILL.md).
 - AO only: `skills/automation-orchestrator-install-openshift` (install/size/troubleshoot AO), `skills/automation-orchestrator-platform-integration` (AAP integration + single sign-on),
