@@ -50,6 +50,8 @@ certified/validated, private hub, Galaxy, in that order), so the repo holds no g
 
 ## Conventions (from infra.aap_configuration / aap_configuration_extended)
 - `.yml` extension; YAML documents start with `---` and end with `...`; 2-space indent; `{{ var }}` with spaces.
+- **No file names containing `secrets`**: `.gitignore` excludes `*secrets*.yml`, so such a task file silently never
+  reaches the repo (use `credentials.yml`). Check with `git ls-files --others --ignored --exclude-standard roles configs playbooks`.
 - Role variables prefixed with the role name (`openshift_automation_orchestrator_*`); internal/loop vars prefixed `__`.
 - Task names prefixed with the file stem: `Postgres | Wait for ...`.
 - Always FQCNs (`redhat.openshift.k8s`, `ansible.builtin.include_vars`).
