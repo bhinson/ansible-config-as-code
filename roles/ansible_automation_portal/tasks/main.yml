@@ -23,7 +23,7 @@
       ansible.builtin.include_tasks: platform_application.yml
 
     - name: Main | Create the Secrets
-      ansible.builtin.include_tasks: secrets.yml
+      ansible.builtin.include_tasks: credentials.yml
 
     - name: Main | Deploy the portal
       ansible.builtin.include_tasks: portal.yml
