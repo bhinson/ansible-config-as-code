@@ -34,8 +34,10 @@
   delay: "{{ ansible_automation_portal_wait_delay }}"
 
 # The configuration reference documents status.url, but operator 2.3 leaves it empty and reports the managed Backstage
-# custom resource as status.deploymentCR (documented as backstageCR). The RHDH operator names its route backstage-<that name>.
-- name: Portal | Look up the portal route
+# custom resource as status.deploymentCR (documented as backstageCR); the RHDH operator names its route backstage-<that name>.
+# The role always sets spec.deployment.route.host, so wait until that route serves the expected host (the phase can still
+# say Running from before a hostname change).
+- name: Portal | Wait for the route to use the expected hostname
   kubernetes.core.k8s_info:
     api_version: route.openshift.io/v1
     kind: Route
@@ -44,14 +46,13 @@
       backstage-{{ __portal_instance.resources[0].status.deploymentCR
                    | default(__portal_instance.resources[0].status.backstageCR | default(ansible_automation_portal_name)) }}
   register: __portal_route
-  when: (__portal_instance.resources[0].status.url | default('')) | length == 0
+  until: (__portal_route.resources[0].spec.host | default('')) == __portal_route_host
+  retries: "{{ ansible_automation_portal_wait_retries }}"
+  delay: "{{ ansible_automation_portal_wait_delay }}"
 
 - name: Portal | Keep the portal URL
   ansible.builtin.set_fact:
-    __portal_url: >-
-      {{ (__portal_instance.resources[0].status.url | default('', true)
-          or __portal_route.resources[0].spec.host)
-         | regex_replace('^(?!https?://)(.+)$', 'https://\1') | regex_replace('/+$', '') }}
+    __portal_url: "https://{{ __portal_route_host }}"
 
 # OAuth sign-in fails until the redirect URI matches the real portal URL.
 - name: Portal | Point the OAuth application redirect URI at the portal

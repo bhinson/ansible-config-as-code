@@ -30,8 +30,8 @@ What it does (AAP 2.7 install guide, "Install automation portal on OpenShift usi
    anything else (external database, resources, source control integration). Waits for phase `Running` and `Ready=True`.
    Operator 2.3 follows its CRD, not the 2.7 docs: pod settings are `spec.deployment.*` (docs: `spec.backstage.*`), and
    `status.url` stays empty, so the URL comes from the route `backstage-<status.deploymentCR>`.
-5. Sets the OAuth application **redirect URI** to `<portal URL>/api/auth/rhaap/handler/frame` (the URL is only known
-   after deployment unless a route hostname is given).
+5. Checks the OAuth application **redirect URI** (`<portal URL>/api/auth/rhaap/handler/frame`) against the deployed
+   portal's route and corrects it (for example after a hostname change).
 
 ## Requirements
 
@@ -54,7 +54,7 @@ See `defaults/main.yml`. Inputs normally supplied by the job template survey:
 |---|---|---|
 | `ansible_automation_portal_namespace` / `_name` | `automation-portal` / `portal` | Operator, portal and local database |
 | `ansible_automation_portal_operator_channel` / `_approval` | `fast` / `Automatic` | |
-| `ansible_automation_portal_route_host` | `""` | Empty = derived from the cluster ingress domain |
+| `ansible_automation_portal_route_host` | `""` | Empty = `<name>-<namespace>.<cluster ingress domain>` |
 | `ansible_automation_portal_platform_url` / `_platform_token` | `""` | Empty = `aap_hostname` / `aap_token` |
 | `ansible_automation_portal_oauth_app_name` / `_organization` | `Ansible automation portal` / `Default` | |
 | `ansible_automation_portal_recreate_oauth_app` | `false` | Deletes and recreates the AAP OAuth application |

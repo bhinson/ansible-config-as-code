@@ -29,7 +29,9 @@ operator" (the Helm chart chapter is the other, older method; don't mix them).
   `spec.backstage.*`. The API server **silently drops** unknown fields, so a docs-style `spec.backstage` block is ignored
   with no error. Check fields with `oc get crd automationportals.automationportal.aap.redhat.com -o json`.
 - `status.url` stays empty; `status.deploymentCR` (docs: `backstageCR`) names the Backstage CR, and the RHDH route is
-  `backstage-<deploymentCR>` (host `backstage-<name>-<namespace>.<apps domain>`). The role reads the route.
+  `backstage-<deploymentCR>`. The route object name is fixed; its host defaults to `backstage-<name>-<namespace>.<apps
+  domain>`, so the role always sets `spec.deployment.route.host` (default `<name>-<namespace>.<apps domain>`) and waits
+  for the route to show it (after a host change the phase stays Running, so don't trust the phase alone).
 - With `caCertificates`, only `NODE_EXTRA_CA_CERTS` is set (adds to the default trust store); no `SSL_CERT_FILE`.
 - Containers in the portal pod: `backstage-backend` and `ansible-devtools-server`.
 

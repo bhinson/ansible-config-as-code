@@ -91,10 +91,8 @@
           organization: "{{ __portal_organization.json.results[0].id }}"
           client_type: confidential
           authorization_grant_type: authorization-code
-          # Placeholder until the route exists when no route hostname is given; portal.yml sets the real one
-          redirect_uris: >-
-            https://{{ ansible_automation_portal_route_host | default('', true)
-                       or (ansible_automation_portal_name ~ '-' ~ ansible_automation_portal_namespace ~ '.invalid') }}/api/auth/rhaap/handler/frame
+          # portal.yml re-checks it against the URL the deployed portal reports
+          redirect_uris: "https://{{ __portal_route_host }}/api/auth/rhaap/handler/frame"
         ca_path: "{{ __portal_ca_file.path }}"
         validate_certs: "{{ ansible_automation_portal_validate_certs | bool }}"
         status_code: 201

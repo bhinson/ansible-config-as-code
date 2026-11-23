@@ -39,7 +39,7 @@ controller_templates__automation_portal:
           required: true
           default: Automatic
         - question_name: Route hostname
-          question_description: Leave empty for a hostname derived from the cluster ingress domain
+          question_description: Empty = <name>-<namespace>.<cluster ingress domain> (portal-automation-portal.<apps domain>)
           variable: ansible_automation_portal_route_host
           type: text
           required: false
