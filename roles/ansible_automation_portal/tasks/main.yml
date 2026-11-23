@@ -1,0 +1,46 @@
+---
+# Uses redhat.openshift (applies objects) and kubernetes.core (lookups), both Red Hat certified, for cluster objects, and
+# ansible.builtin.uri for the Ansible Automation Platform (AAP) gateway API: the OAuth client secret and new token
+# values are only returned by the raw create calls.
+# Cluster authentication: K8S_AUTH_* environment variables (job credential).
+# AAP authentication: aap_hostname / aap_token (job credential).
+# Docs: AAP 2.7 install guide, "Install automation portal on OpenShift using the operator" (Technology Preview).
+
+- name: Main | Install Ansible automation portal
+  module_defaults:
+    group/kubernetes.core.k8s:
+      validate_certs: "{{ ansible_automation_portal_validate_certs | bool }}"
+    redhat.openshift.k8s:
+      validate_certs: "{{ ansible_automation_portal_validate_certs | bool }}"
+  block:
+    - name: Main | Discover settings from the cluster and job credentials
+      ansible.builtin.include_tasks: discover.yml
+
+    - name: Main | Install the operator
+      ansible.builtin.include_tasks: operator.yml
+
+    - name: Main | Create the Ansible Automation Platform OAuth application and catalog token
+      ansible.builtin.include_tasks: platform_application.yml
+
+    - name: Main | Create the Secrets
+      ansible.builtin.include_tasks: secrets.yml
+
+    - name: Main | Deploy the portal
+      ansible.builtin.include_tasks: portal.yml
+
+    - name: Main | Report
+      ansible.builtin.debug:
+        msg:
+          - >-
+            Ansible automation portal is Running (version
+            {{ __portal_instance.resources[0].status.version | default('unknown') }}): {{ __portal_url }}
+          - >-
+            Sign in with an Ansible Automation Platform account ({{ __portal_platform_url }}),
+            OAuth application '{{ ansible_automation_portal_oauth_app_name }}'.
+  always:
+    - name: Main | Remove the temporary certificate authority file
+      ansible.builtin.file:
+        path: "{{ __portal_ca_file.path }}"
+        state: absent
+      when: __portal_ca_file.path is defined
+...

@@ -1,0 +1,78 @@
+# ansible_automation_portal
+
+Installs Ansible automation portal on OpenShift with the **automation portal operator** (Technology Preview in Ansible
+Automation Platform (AAP) 2.7) and connects it to an existing AAP. Independent of the Automation Orchestrator roles; the
+AAP can run anywhere the portal can reach. Generic: URLs, registry credentials and the certificate authority (CA) are
+discovered from the cluster and the job's credentials when left empty.
+
+What it does (AAP 2.7 install guide, "Install automation portal on OpenShift using the operator"):
+
+1. **Operator** `automation-portal-operator` (channel `fast`): namespace, OperatorGroup targeting the portal namespace
+   (OwnNamespace, as in the guide), Subscription; waits for the ClusterServiceVersion. When the first AutomationPortal is
+   created, the operator installs the Red Hat Developer Hub (RHDH) operator itself if it is missing.
+2. **AAP OAuth application** (authorization code, confidential) for portal sign-in and an **AAP API token with write
+   scope** for catalog synchronization (gateway API `/api/gateway/v1/applications/` and `/tokens/`).
+   - AAP returns the client secret and token values only at creation. Re-runs reuse them from the portal Secret; the
+     stored token is checked against `/api/gateway/v1/me/` and replaced if it no longer works.
+   - If the application exists but the Secret doesn't hold its client secret, the role stops unless
+     `ansible_automation_portal_recreate_oauth_app` is true.
+3. **Secrets** (re-applied from their sources every run):
+   - `secrets-rhaap-portal`: written right after the OAuth application and token are created (AAP shows those
+     values only once), `aap-host-url`, `oauth-client-id`, `oauth-client-secret`, `aap-token`.
+   - `<name>-registry-auth`: `auth.json` for the OCI dynamic plugin images; by default the `registry.redhat.io` entry
+     of the cluster global pull secret (`openshift-config/pull-secret`).
+   - `<name>-ca-bundle`: `ca-bundle.crt` = the cluster trusted CA bundle (injected by OpenShift into ConfigMap
+     `<name>-trusted-ca-bundle`) + the CA for AAP (default: OpenShift ingress CA). The docs say the operator points
+     `SSL_CERT_FILE` and `REQUESTS_CA_BUNDLE` at this file (operator 2.3 sets only `NODE_EXTRA_CA_CERTS`), so it also
+     holds the public CAs (registry.redhat.io, github.com).
+4. **AutomationPortal** custom resource (CR) with `spec.deployment.caCertificates` (so `checkSSL` stays `true`), catalog
+   settings and permissions; `ansible_automation_portal_spec_overrides` is merged over the generated spec for
+   anything else (external database, resources, source control integration). Waits for phase `Running` and `Ready=True`.
+   Operator 2.3 follows its CRD, not the 2.7 docs: pod settings are `spec.deployment.*` (docs: `spec.backstage.*`), and
+   `status.url` stays empty, so the URL comes from the route `backstage-<status.deploymentCR>`.
+5. Sets the OAuth application **redirect URI** to `<portal URL>/api/auth/rhaap/handler/frame` (the URL is only known
+   after deployment unless a route hostname is given).
+
+## Requirements
+
+- Collections: `redhat.openshift` (Red Hat certified; applies objects) and `kubernetes.core` (Red Hat certified; lookups).
+  AAP gateway calls use `ansible.builtin.uri`: the OAuth client secret and token values only come back from the create calls.
+- Credentials (in AAP, attach both to the job template):
+  - cluster: `K8S_AUTH_HOST` / `K8S_AUTH_API_KEY` / `K8S_AUTH_SSL_CA_CERT` (custom type *OpenShift API (configuration as
+    code)*); needs cluster-admin (operator install, reading `openshift-config/pull-secret`).
+  - AAP: *Red Hat Ansible Automation Platform* credential (`aap_hostname` / `aap_token`); the token needs rights to create
+    OAuth applications in the chosen organization. The catalog token is created for the same user, and only job templates
+    that user can see are synchronized (an AAP administrator sees all).
+- Users who sign in through an external identity provider (LDAP, SAML, ...) need the AAP setting **Allow external users
+  to create OAuth2 tokens** (`ALLOW_OAUTH2_FOR_EXTERNAL_USERS`); it is an AAP-wide change, so this role does not make it.
+
+## Variables
+
+See `defaults/main.yml`. Inputs normally supplied by the job template survey:
+
+| Variable | Default | Notes |
+|---|---|---|
+| `ansible_automation_portal_namespace` / `_name` | `automation-portal` / `portal` | Operator, portal and local database |
+| `ansible_automation_portal_operator_channel` / `_approval` | `fast` / `Automatic` | |
+| `ansible_automation_portal_route_host` | `""` | Empty = derived from the cluster ingress domain |
+| `ansible_automation_portal_platform_url` / `_platform_token` | `""` | Empty = `aap_hostname` / `aap_token` |
+| `ansible_automation_portal_oauth_app_name` / `_organization` | `Ansible automation portal` / `Default` | |
+| `ansible_automation_portal_recreate_oauth_app` | `false` | Deletes and recreates the AAP OAuth application |
+| `ansible_automation_portal_catalog_token` / `_rotate_catalog_token` | `""` / `false` | Empty = keep the stored token or create one |
+| `ansible_automation_portal_catalog_organizations` | `[]` | List or comma-separated; empty = operator default (`Default`) |
+| `ansible_automation_portal_catalog_sync_interval` | `60` | Minutes |
+| `ansible_automation_portal_job_template_labels` / `_exclude_labels` | `[]` | Catalog filter by AAP label |
+| `ansible_automation_portal_collections_enabled` | `false` | Private automation hub and Galaxy collections in the catalog |
+| `ansible_automation_portal_admin_users` | `[]` | `user:default/<AAP username>`, `group:default/<team>`; empty = operator default |
+| `ansible_automation_portal_registry_username` / `_password` | `""` | Empty = cluster global pull secret |
+| `ansible_automation_portal_validate_certs` | `true` | This job verifies the cluster API and AAP certificates |
+| `ansible_automation_portal_check_ssl` | `true` | `spec.aap.checkSSL`; prefer the CA bundle |
+| `ansible_automation_portal_ca_certificate` | `""` | CA for AAP; empty = OpenShift ingress CA |
+| `ansible_automation_portal_spec_overrides` | `{}` | Recursively merged into the AutomationPortal spec |
+
+## Verify
+
+Open the reported URL and sign in with an AAP account (a browser step the role can't do). Job templates from the
+synchronized organizations appear in the catalog after the first sync (the interval above; restart the portal pod or
+use the portal's sync to see changes sooner). Portal role-based access control (which teams may run which templates)
+is configured in the portal under Administration > RBAC.

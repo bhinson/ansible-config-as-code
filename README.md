@@ -25,6 +25,8 @@ Red Hat certified collections first, Red Hat validated content second, and commu
 | `roles/automation_orchestrator_llm_integration/` | Configure the AO LLM provider integration (generic) |
 | `playbooks/automation_orchestrator_cve_remediation.yml` | Add the AO CVE remediation workflow (CVE lookup, LLM triage, approval, Satellite fix) |
 | `roles/automation_orchestrator_cve_remediation/` | Build and publish that workflow (generic) |
+| `playbooks/ansible_automation_portal.yml` | Install Ansible automation portal on OpenShift (operator, AAP OAuth application, catalog token) |
+| `roles/ansible_automation_portal/` | Install and connect Ansible automation portal (generic; independent of AO) |
 | `playbooks/cve_remediation_assess.yml`, `cve_remediation_apply.yml` | Host playbooks the workflow launches (assess read-only; apply after approval) |
 | `configs/` | AAP configuration data by area (see `configs/README.md`) |
 | `playbooks/initialize_automation_platform.yml` | Initialize AAP (ansible-core only) and launch the configure job template |
@@ -63,7 +65,7 @@ rest of this repo, then launches it.
    **"Configuration as code | Apply Ansible Automation Platform configuration"** (your site values become its extra vars),
    then launches that job template, which creates every other object in `configs/common` and the selected areas.
 3. Afterwards, change the configuration in git and re-launch that job template. Run the Automation Orchestrator job
-   templates in the order listed in `configs/README.md`.
+   templates in the order listed in `configs/README.md`, and "Automation portal | Install on OpenShift" for the portal.
 
 **Removing it again:** `ansible-playbook playbooks/cleanup_automation_platform.yml -e @/path/to/site.yml [--check]`
 deletes, by exact name from `configs/common` and the selected areas (never `platform_management`) and only in the site
@@ -71,7 +73,7 @@ organization, the job templates,
 inventory sources, inventories (with their hosts), the project, the credentials and the custom credential type, in that
 order. Playbook run history is kept (AAP itself removes project and inventory sync records along with their project or
 source); nothing else in AAP is touched. `--check` lists what it would delete. Objects that
-Automation Orchestrator roles create (in AO or the AAP gateway) are not removed.
+Automation Orchestrator and automation portal roles create (in AO, OpenShift or the AAP gateway) are not removed.
 
 **Without the initialization playbook** (AAP UI): create the same objects by hand: the credential type (inputs and injectors from
 `configs/common/credential_types.yml`), the two credentials, a project for this repo, an inventory with one

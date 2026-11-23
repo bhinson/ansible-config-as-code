@@ -26,6 +26,11 @@ are linked, never copied, so they stay current.
   [skills/automation-orchestrator-cve-remediation/SKILL.md](skills/automation-orchestrator-cve-remediation/SKILL.md).
 - Any AO API work: the OpenAPI specification at `https://<AO host>/api_docs/v1/openapi.json` is the documented contract.
 
+## Ansible automation portal (only when working on it)
+- Installing Ansible automation portal on OpenShift, `roles/ansible_automation_portal`, the AutomationPortal custom
+  resource, portal sign-in or catalog synchronization failures: follow
+  [skills/automation-portal-install-openshift/SKILL.md](skills/automation-portal-install-openshift/SKILL.md).
+
 ## Always
 - **Never** write self-referential Jinja under task `vars:` (`key: "{{ key | default([]) }}"`); it causes recursive
   template loops. Follow upstream [ansible-jinja-no-self-ref](https://github.com/redhat-cop/aap_configuration_extended/blob/devel/skills/ansible-jinja-no-self-ref/SKILL.md) and run the

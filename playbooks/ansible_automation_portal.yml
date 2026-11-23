@@ -1,0 +1,12 @@
+---
+# Install Ansible automation portal on OpenShift (automation portal operator, Technology Preview) and connect it to Ansible
+# Automation Platform (AAP): OAuth application for sign-in, catalog synchronization token, Secrets, AutomationPortal.
+# In AAP: job template "Automation portal | Install on OpenShift" (survey supplies inputs; credentials: OpenShift API
+# (configuration as code) + Red Hat Ansible Automation Platform).
+#   Local test: source scripts/env.sh && ansible-playbook playbooks/ansible_automation_portal.yml -e @my-vars.yml
+- name: Ansible automation portal on OpenShift
+  hosts: localhost
+  gather_facts: false
+  roles:
+    - role: ansible_automation_portal
+...

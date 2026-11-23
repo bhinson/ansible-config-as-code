@@ -1,0 +1,38 @@
+---
+# AutomationPortal spec generated from the role variables (install guide, "Automation portal operator configuration
+# reference"); ansible_automation_portal_spec_overrides is merged over it.
+# The 2.7 docs call the pod settings spec.backstage; the operator's CRD (2.3) names them spec.deployment, and the API
+# server silently drops unknown fields, so follow the CRD.
+aap:
+  checkSSL: {{ ansible_automation_portal_check_ssl | bool | to_json }}
+  credentials:
+    secretRef: {{ ansible_automation_portal_credentials_secret }}
+deployment:
+  caCertificates:
+    secretRef: {{ ansible_automation_portal_name }}-ca-bundle
+{% if ansible_automation_portal_route_host | length > 0 %}
+  route:
+    host: {{ ansible_automation_portal_route_host }}
+{% endif %}
+plugins:
+  registry: {{ ansible_automation_portal_registry }}
+  catalog:
+    enabled: true
+    syncInterval: {{ ansible_automation_portal_catalog_sync_interval | int }}
+{% if __portal_catalog_organizations | length > 0 %}
+    orgs: {{ __portal_catalog_organizations | to_json }}
+{% endif %}
+    jobTemplates:
+      enabled: true
+{% if __portal_job_template_labels | length > 0 %}
+      labels: {{ __portal_job_template_labels | to_json }}
+{% endif %}
+{% if __portal_job_template_exclude_labels | length > 0 %}
+      excludeLabels: {{ __portal_job_template_exclude_labels | to_json }}
+{% endif %}
+    collections:
+      enabled: {{ ansible_automation_portal_collections_enabled | bool | to_json }}
+{% if __portal_admin_users | length > 0 %}
+permissions:
+  adminUsers: {{ __portal_admin_users | to_json }}
+{% endif %}

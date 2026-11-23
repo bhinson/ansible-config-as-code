@@ -1,0 +1,70 @@
+---
+- name: Portal | Build the AutomationPortal spec
+  ansible.builtin.set_fact:
+    __portal_spec: >-
+      {{ lookup('ansible.builtin.template', 'automationportal.yml.j2') | from_yaml
+         | combine(ansible_automation_portal_spec_overrides | default({}, true), recursive=true) }}
+
+- name: Portal | Apply the AutomationPortal custom resource
+  redhat.openshift.k8s:  # noqa: fqcn[canonical]
+    state: present
+    apply: true
+    definition:
+      apiVersion: automationportal.aap.redhat.com/v1alpha1
+      kind: AutomationPortal
+      metadata:
+        name: "{{ ansible_automation_portal_name }}"
+        namespace: "{{ ansible_automation_portal_namespace }}"
+      spec: "{{ __portal_spec }}"
+
+# Phases: Pending (validating Secrets, installing the Red Hat Developer Hub operator) -> Running (all conditions True)
+- name: Portal | Wait for the portal to be Running and Ready
+  kubernetes.core.k8s_info:
+    api_version: automationportal.aap.redhat.com/v1alpha1
+    kind: AutomationPortal
+    name: "{{ ansible_automation_portal_name }}"
+    namespace: "{{ ansible_automation_portal_namespace }}"
+  register: __portal_instance
+  until: >-
+    __portal_instance.resources | length > 0 and
+    (__portal_instance.resources[0].status.phase | default('')) == 'Running' and
+    (__portal_instance.resources[0].status.conditions | default([])
+     | selectattr('type', 'equalto', 'Ready') | selectattr('status', 'equalto', 'True') | list | length > 0)
+  retries: "{{ ansible_automation_portal_wait_retries }}"
+  delay: "{{ ansible_automation_portal_wait_delay }}"
+
+# The configuration reference documents status.url, but operator 2.3 leaves it empty and reports the managed Backstage
+# custom resource as status.deploymentCR (documented as backstageCR). The RHDH operator names its route backstage-<that name>.
+- name: Portal | Look up the portal route
+  kubernetes.core.k8s_info:
+    api_version: route.openshift.io/v1
+    kind: Route
+    namespace: "{{ ansible_automation_portal_namespace }}"
+    name: >-
+      backstage-{{ __portal_instance.resources[0].status.deploymentCR
+                   | default(__portal_instance.resources[0].status.backstageCR | default(ansible_automation_portal_name)) }}
+  register: __portal_route
+  when: (__portal_instance.resources[0].status.url | default('')) | length == 0
+
+- name: Portal | Keep the portal URL
+  ansible.builtin.set_fact:
+    __portal_url: >-
+      {{ (__portal_instance.resources[0].status.url | default('', true)
+          or __portal_route.resources[0].spec.host)
+         | regex_replace('^(?!https?://)(.+)$', 'https://\1') | regex_replace('/+$', '') }}
+
+# OAuth sign-in fails until the redirect URI matches the real portal URL.
+- name: Portal | Point the OAuth application redirect URI at the portal
+  ansible.builtin.uri:
+    url: "{{ __portal_platform_url }}/api/gateway/v1/applications/{{ __portal_app_id }}/"
+    method: PATCH
+    headers:
+      Authorization: "Bearer {{ __portal_platform_token }}"
+    body_format: json
+    body:
+      redirect_uris: "{{ __portal_url }}/api/auth/rhaap/handler/frame"
+    ca_path: "{{ __portal_ca_file.path }}"
+    validate_certs: "{{ ansible_automation_portal_validate_certs | bool }}"
+  when: __portal_app_redirect_uris | trim != __portal_url ~ '/api/auth/rhaap/handler/frame'
+  changed_when: true
+...

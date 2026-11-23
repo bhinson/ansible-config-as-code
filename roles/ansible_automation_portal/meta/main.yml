@@ -1,0 +1,13 @@
+---
+galaxy_info:
+  author: ansible-config-as-code contributors
+  description: >-
+    Install Ansible automation portal on OpenShift (automation portal operator) and connect it to Ansible Automation
+    Platform (OAuth application, catalog token)
+  license: GPL-3.0-or-later
+  min_ansible_version: "2.16"
+  platforms:
+    - name: GenericLinux
+      versions: [all]
+dependencies: []
+...

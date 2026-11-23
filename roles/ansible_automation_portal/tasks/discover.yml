@@ -1,0 +1,70 @@
+---
+- name: Discover | Normalize survey-style inputs (comma-separated strings -> lists)
+  ansible.builtin.set_fact:
+    __portal_catalog_organizations: >-
+      {{ (ansible_automation_portal_catalog_organizations.split(',') if ansible_automation_portal_catalog_organizations is string
+          else ansible_automation_portal_catalog_organizations) | map('trim') | select | list }}
+    __portal_job_template_labels: >-
+      {{ (ansible_automation_portal_job_template_labels.split(',') if ansible_automation_portal_job_template_labels is string
+          else ansible_automation_portal_job_template_labels) | map('trim') | select | list }}
+    __portal_job_template_exclude_labels: >-
+      {{ (ansible_automation_portal_job_template_exclude_labels.split(',')
+          if ansible_automation_portal_job_template_exclude_labels is string
+          else ansible_automation_portal_job_template_exclude_labels) | map('trim') | select | list }}
+    __portal_admin_users: >-
+      {{ (ansible_automation_portal_admin_users.split(',') if ansible_automation_portal_admin_users is string
+          else ansible_automation_portal_admin_users) | map('trim') | select | list }}
+    __portal_operator_namespace: >-
+      {{ ansible_automation_portal_operator_namespace | default('', true) or ansible_automation_portal_namespace }}
+
+- name: Discover | Resolve the Ansible Automation Platform URL and token
+  ansible.builtin.set_fact:
+    __portal_platform_url: >-
+      {{ ((ansible_automation_portal_platform_url
+           if ansible_automation_portal_platform_url | length > 0
+           else aap_hostname | default(''))
+          | regex_replace('^(?!https?://)(.+)$', 'https://\1')) | regex_replace('/+$', '') }}
+    __portal_platform_token: >-
+      {{ ansible_automation_portal_platform_token if ansible_automation_portal_platform_token | length > 0
+         else ((aap_token.token if aap_token is mapping else aap_token) | default('')) }}
+  no_log: true
+
+- name: Discover | Check required inputs
+  ansible.builtin.assert:
+    that:
+      - __portal_platform_url is match('https?://.+')
+      - __portal_platform_token | length > 0
+      - ansible_automation_portal_catalog_sync_interval | int > 0
+    fail_msg: >-
+      Need the Ansible Automation Platform URL and a token (Red Hat Ansible Automation Platform credential, or
+      ansible_automation_portal_platform_url / _platform_token) and a positive catalog sync interval.
+    quiet: true
+
+- name: Discover | Read the OpenShift ingress certificate authority
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: ConfigMap
+    namespace: openshift-config-managed
+    name: default-ingress-cert
+  register: __portal_ingress_ca
+  when: ansible_automation_portal_ca_certificate | length == 0
+
+- name: Discover | Set the certificate authority the portal and this job trust for Ansible Automation Platform
+  ansible.builtin.set_fact:
+    __portal_ca: >-
+      {{ ansible_automation_portal_ca_certificate
+         if ansible_automation_portal_ca_certificate | length > 0
+         else __portal_ingress_ca.resources[0].data['ca-bundle.crt'] }}
+
+- name: Discover | Create a temporary certificate authority file for API calls
+  ansible.builtin.tempfile:
+    state: file
+    suffix: .pem
+  register: __portal_ca_file
+
+- name: Discover | Write the certificate authority file
+  ansible.builtin.copy:
+    content: "{{ __portal_ca }}"
+    dest: "{{ __portal_ca_file.path }}"
+    mode: "0600"
+...
