@@ -1,7 +1,7 @@
 ---
 # Automation Orchestrator (AO) configure guide, "Add Ansible Automation Platform as an identity provider manually":
 #   Ansible Automation Platform (AAP): OAuth2 application (authorization-code, confidential, RS256), redirect
-#     <AO URL>/api/v1/auth/oidc/callback, post-logout <AO URL>/
+#     <AO URL>/api/v1/auth/oidc/callback, post-logout <AO URL>/ (AO itself sends <AO URL> without the slash; both registered)
 #     (gateway REST API; the client secret is returned only by the create call).
 #   AO: documented /api/v1/identity_providers API (provider_type oidc, idp_type aap,
 #     issuer <AAP URL>/o/, scopes "read write openid roles"); POST /identity_providers/test
@@ -9,6 +9,13 @@
 # AO 2026.8 quirk: POST /identity_providers does not persist configuration.client_secret (single
 #   sign-on then fails with "authentication failed" / token exchange 401). We always follow a create with a PATCH
 #   carrying the full configuration plus the secret (docs: client_secret "omit on PATCH to keep existing").
+
+
+- name: Single sign-on | Set the post-logout redirect URIs (AO sends the URL without a trailing slash; the docs show one)
+  ansible.builtin.set_fact:
+    __orchestrator_post_logout_uris:
+      - "{{ __orchestrator_url }}"
+      - "{{ __orchestrator_url }}/"
 
 - name: Single sign-on | List Automation Orchestrator identity providers
   ansible.builtin.uri:
@@ -95,13 +102,32 @@
           authorization_grant_type: authorization-code
           algorithm: RS256
           redirect_uris: "{{ __orchestrator_url }}/api/v1/auth/oidc/callback"
-          post_logout_redirect_uris: "{{ __orchestrator_url }}/"
+          post_logout_redirect_uris: "{{ __orchestrator_post_logout_uris | join(' ') }}"
         ca_path: "{{ __orchestrator_ca_file.path }}"
         validate_certs: "{{ automation_orchestrator_configuration_validate_certs | bool }}"
         status_code: 201
       register: __orchestrator_app_create
       changed_when: true
       no_log: true
+
+# AO sends post_logout_redirect_uri without a trailing slash (the AO docs show it with one) and AAP compares the URIs
+# exactly, so register both forms; existing applications get them too (no client secret involved).
+- name: Single sign-on | Update the post-logout redirect URIs of the existing OAuth application
+  ansible.builtin.uri:
+    url: "{{ __orchestrator_platform_url }}/api/gateway/v1/applications/{{ __orchestrator_existing_app.id }}/"
+    method: PATCH
+    headers:
+      Authorization: "Bearer {{ __orchestrator_platform_token }}"
+    body_format: json
+    body:
+      post_logout_redirect_uris: "{{ __orchestrator_post_logout_uris | join(' ') }}"
+    ca_path: "{{ __orchestrator_ca_file.path }}"
+    validate_certs: "{{ automation_orchestrator_configuration_validate_certs | bool }}"
+  when:
+    - not (__orchestrator_need_app | bool)
+    - __orchestrator_existing_app | length > 0
+    - __orchestrator_post_logout_uris | difference((__orchestrator_existing_app.post_logout_redirect_uris | default('')).split()) | length > 0
+  changed_when: true
 
 - name: Single sign-on | Build the desired identity provider configuration
   ansible.builtin.set_fact:

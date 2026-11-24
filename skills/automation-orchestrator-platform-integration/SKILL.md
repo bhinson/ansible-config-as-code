@@ -56,6 +56,9 @@ operator can drop them on upgrade, so the role re-applies them every run; re-che
    map to `admins`, auditors to `auditors`, everyone else to `users`.
 
 ## Gotchas
+- **Sign-out "This client does not have this redirect uri registered"** (at `<AAP>/o/logout/`): AO sends
+  `post_logout_redirect_uri=<AO URL>` without a trailing slash, but the docs register `<AO URL>/`, and AAP compares
+  exactly. The role registers both and patches existing applications; the gateway proxy log shows the URI AO sent.
 - **AO 2026.8: creating an IdP does not persist `configuration.client_secret`.** Symptom: SSO shows
   "authentication failed"; AO backend logs `Token exchange failed with HTTP 401`; the gateway access log shows
   `POST /o/token/ 401` from `python-httpx` with no client credentials. Fix: PATCH the provider with the **full**
