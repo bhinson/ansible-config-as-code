@@ -60,7 +60,7 @@ openshift_automation_mcp_validate_certs: true
 # PEM certificate authority (CA) for AAP and the MCP route; empty = OpenShift ingress CA (default-ingress-cert)
 openshift_automation_mcp_ca_certificate: ""
 
-# --- waits ---
-openshift_automation_mcp_wait_retries: 60
+# --- waits --- (a recreated server waits for a full AAP operator reconcile, often 5-10 minutes)
+openshift_automation_mcp_wait_retries: 120
 openshift_automation_mcp_wait_delay: 10
 ...

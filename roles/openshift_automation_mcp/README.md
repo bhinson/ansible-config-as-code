@@ -17,7 +17,9 @@ pods) for what the documentation leaves out.
    operator deploys it: deployment, service, route, ConfigMap).
 3. **Recreate on change**: the AAP operator only copies `spec.mcp` into the `AnsibleMCPServer` when it creates it.
    When the running server's settings differ from the wanted ones, the role deletes the `AnsibleMCPServer` (the
-   extend guide's procedure for changed permissions) and the AAP operator recreates it.
+   extend guide's procedure for changed permissions) before changing `spec.mcp`, so the reconcile that the change starts
+   recreates it (deleting afterwards leaves it to the next reconcile, many minutes later). A full AAP reconcile takes
+   5-10 minutes, hence the 20-minute wait.
 4. Waits for the `AnsibleMCPServer` (`Successful` condition, `status.URL`) and its deployment, then checks
    `<URL>/api/v1/health`.
 5. **OAuth application** (optional, with OAuth 2.1 on): authorization code grant, public or confidential client, the MCP

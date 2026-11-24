@@ -55,6 +55,18 @@
       {{ __mcp_defaults | combine(__mcp_existing.resources[0].spec | default({}) if __mcp_existing.resources | length > 0 else {}) }}
     __mcp_wanted: "{{ __mcp_defaults | combine(__mcp_spec) }}"
 
+# Delete before changing spec.mcp: the spec change starts one AAP reconcile, which then creates the server. Deleting
+# afterwards lets that reconcile still see the old server, and only the next one (minutes later) recreates it.
+- name: MCP | Delete the AnsibleMCPServer so the operator recreates it with the new settings
+  redhat.openshift.k8s:  # noqa: fqcn[canonical]
+    state: absent
+    api_version: mcpserver.ansible.com/v1alpha1
+    kind: AnsibleMCPServer
+    namespace: "{{ __mcp_platform_namespace }}"
+    name: "{{ __mcp_name }}"
+    wait: true
+  when: __mcp_recreate | bool
+
 - name: MCP | Set spec.mcp on the Ansible Automation Platform custom resource
   redhat.openshift.k8s:  # noqa: fqcn[canonical]
     state: present
@@ -67,16 +79,6 @@
         namespace: "{{ __mcp_platform_namespace }}"
       spec:
         mcp: "{{ __mcp_spec }}"
-
-- name: MCP | Delete the AnsibleMCPServer so the operator recreates it with the new settings
-  redhat.openshift.k8s:  # noqa: fqcn[canonical]
-    state: absent
-    api_version: mcpserver.ansible.com/v1alpha1
-    kind: AnsibleMCPServer
-    namespace: "{{ __mcp_platform_namespace }}"
-    name: "{{ __mcp_name }}"
-    wait: true
-  when: __mcp_recreate | bool
 
 - name: MCP | Wait for the AnsibleMCPServer with the wanted settings
   kubernetes.core.k8s_info:
