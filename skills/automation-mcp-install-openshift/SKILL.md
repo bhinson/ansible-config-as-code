@@ -29,6 +29,9 @@ chapter "Deploy the MCP server on Ansible Automation Platform" (operator-based i
   (`check_existing_components.yml` sets `_deploy_mcp: false` once it exists). Any `spec.mcp` change therefore needs the
   AnsibleMCPServer deleted (the guide documents this for permission changes); the role does it when the running spec
   differs. The AnsibleMCPServer keeps its owner reference, so the deletion triggers an AAP reconcile that recreates it.
+  **Delete before changing `spec.mcp`**: deleting afterwards lets the reconcile started by the spec change still see the
+  old server, and the next reconcile recreates it many minutes later. An AAP reconcile takes 8-10 minutes; a
+  recreate waits for the running one plus one more (jobs 890/894: about 19 minutes each). Re-runs without changes take seconds.
 - **`spec.mcp.disabled: true` doesn't delete** an existing AnsibleMCPServer; delete it as well.
 - **Extra setting values**: the MCP operator renders `"{{ item.value }}"`, so YAML `true` becomes `"True"`. Write strings.
   (The server's own boolean settings, like `ALLOW_WRITE_OPERATIONS`, are parsed case-insensitively, so the operator's
