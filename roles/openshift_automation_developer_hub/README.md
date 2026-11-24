@@ -17,7 +17,8 @@ RHDH 1.10 "Installing Red Hat Developer Hub on OpenShift Container Platform" and
    - **Sign-in with AAP is not in the RHDH docs** (their providers are RHBK, GitHub, Microsoft, GitLab, PingFederate,
      guest). It uses `auth-backend-module-rhaap-provider` from the same AAP `automation-portal` OCI bundle as the
      Ansible plug-ins, configured like the automation portal operator does (`auth.providers.rhaap`,
-     `signInPage: rhaap`, resolver `allowNewAAPUserSignIn`).
+     `signInPage: rhaap`, resolver `allowNewAAPUserSignIn`; frontend sign-in page `SignInPage` and `providerSettings`
+     `ansible.auth.rhaap` from the self-service plug-in).
 3. **Credentials**: `dynamic-plugins-registry-auth` (`auth.json` for the OCI plug-ins; the name is fixed for operator
    deployments; default: the `registry.redhat.io` entry of the cluster global pull secret) and ConfigMap
    `<name>-ca-bundle` (cluster trusted bundle + AAP CA), mounted into the backend (`NODE_EXTRA_CA_CERTS`), the plug-in

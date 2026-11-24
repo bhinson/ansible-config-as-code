@@ -31,6 +31,19 @@ plugins:
             scaffolderFieldExtensions:
               - importName: AAPTokenFieldExtension
               - importName: AAPResourcePickerExtension
+            # AAP sign-in page and logout button (frontend side of the rhaap sign-in module; without signInPage the
+            # RHDH frontend falls back to its default GitHub button). As the automation portal operator configures it.
+            signInPage:
+              importName: SignInPage
+            providerSettings:
+              - title: Ansible Automation Platform
+                description: Sign in with your Ansible Automation Platform account
+                provider: ansible.auth.rhaap
+            mountPoints:
+              - mountPoint: global.header/profile
+                importName: AAPLogoutButton
+                config:
+                  priority: 100
   - package: "{{ __oci }}!ansible-backstage-plugin-catalog-backend-module-rhaap"
     disabled: false
     pluginConfig: {}
