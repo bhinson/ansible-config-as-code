@@ -1,5 +1,5 @@
 ---
-# ansible_automation_portal: install Ansible automation portal on OpenShift with the automation portal operator
+# openshift_automation_portal: install Ansible automation portal on OpenShift with the automation portal operator
 # (Technology Preview in Ansible Automation Platform (AAP) 2.7) and connect it to an existing AAP:
 #   - AAP OAuth application (portal sign-in) and an AAP API token with write scope (catalog synchronization)
 #   - Secrets: AAP credentials, registry credentials for the dynamic plugin images, certificate authority (CA) bundle
@@ -9,71 +9,71 @@
 
 # --- operator ---
 # Empty = the portal namespace (OwnNamespace install, as in the install guide)
-ansible_automation_portal_operator_namespace: ""
-ansible_automation_portal_operator_channel: fast
-ansible_automation_portal_operator_approval: Automatic
-ansible_automation_portal_operator_source: redhat-operators
+openshift_automation_portal_operator_namespace: ""
+openshift_automation_portal_operator_channel: fast
+openshift_automation_portal_operator_approval: Automatic
+openshift_automation_portal_operator_source: redhat-operators
 
 # --- instance ---
-ansible_automation_portal_namespace: automation-portal
-ansible_automation_portal_name: portal
+openshift_automation_portal_namespace: automation-portal
+openshift_automation_portal_name: portal
 # Route hostname; empty = the default: OpenShift generates <route name>-<namespace>.<apps domain> for the route the
 # Red Hat Developer Hub operator creates (backstage-<name>), e.g. backstage-portal-automation-portal.apps.example.com.
-ansible_automation_portal_route_host: ""
+openshift_automation_portal_route_host: ""
 # Secret with the AAP credentials (keys aap-host-url, oauth-client-id, oauth-client-secret, aap-token)
-ansible_automation_portal_credentials_secret: secrets-rhaap-portal
+openshift_automation_portal_credentials_secret: secrets-rhaap-portal
 
 # --- AAP ---
 # Empty = aap_hostname (Red Hat Ansible Automation Platform credential)
-ansible_automation_portal_platform_url: ""
+openshift_automation_portal_platform_url: ""
 # Token this job uses for the AAP gateway API (OAuth application, catalog token). Empty = aap_token (same credential).
 # Needs rights to create OAuth applications in the organization below.
-ansible_automation_portal_platform_token: ""
-ansible_automation_portal_oauth_app_name: Ansible automation portal
-ansible_automation_portal_oauth_app_organization: Default
+openshift_automation_portal_platform_token: ""
+openshift_automation_portal_oauth_app_name: Ansible automation portal
+openshift_automation_portal_oauth_app_organization: Default
 # AAP returns the OAuth client secret only when it creates the application. If the application exists but the portal
 # Secret doesn't hold its client secret, set this to delete and recreate the application (invalidates the old secret).
-ansible_automation_portal_recreate_oauth_app: false
+openshift_automation_portal_recreate_oauth_app: false
 # Catalog synchronization token (AAP API token, write scope). Only job templates this token's user can see are
 # synchronized. Empty = keep the token already in the portal Secret if it still works, else create one for the
-# user of ansible_automation_portal_platform_token.
-ansible_automation_portal_catalog_token: ""
+# user of openshift_automation_portal_platform_token.
+openshift_automation_portal_catalog_token: ""
 # Create a new catalog token even if the stored one works
-ansible_automation_portal_rotate_catalog_token: false
+openshift_automation_portal_rotate_catalog_token: false
 
 # --- catalog (AutomationPortal spec.plugins.catalog) ---
 # AAP organizations to synchronize (list or comma-separated); empty = operator default (Default)
-ansible_automation_portal_catalog_organizations: []
-ansible_automation_portal_catalog_sync_interval: 60
+openshift_automation_portal_catalog_organizations: []
+openshift_automation_portal_catalog_sync_interval: 60
 # Only job templates with all of these labels / without any of these labels (list or comma-separated)
-ansible_automation_portal_job_template_labels: []
-ansible_automation_portal_job_template_exclude_labels: []
+openshift_automation_portal_job_template_labels: []
+openshift_automation_portal_job_template_exclude_labels: []
 # Synchronize private automation hub and Galaxy collections
-ansible_automation_portal_collections_enabled: false
+openshift_automation_portal_collections_enabled: false
 
 # --- permissions (spec.permissions) ---
 # Portal administrators, for example user:default/<AAP username> or group:default/<AAP team>; empty = operator default
-ansible_automation_portal_admin_users: []
+openshift_automation_portal_admin_users: []
 
 # --- registry credentials for the OCI dynamic plugin images (Secret <name>-registry-auth) ---
-ansible_automation_portal_registry: registry.redhat.io
+openshift_automation_portal_registry: registry.redhat.io
 # Empty = copy the registry's entry from the cluster global pull secret (openshift-config/pull-secret)
-ansible_automation_portal_registry_username: ""
-ansible_automation_portal_registry_password: ""
+openshift_automation_portal_registry_username: ""
+openshift_automation_portal_registry_password: ""
 
 # --- TLS ---
 # Verify TLS certificates on this job's calls to the cluster API and AAP
-ansible_automation_portal_validate_certs: true
+openshift_automation_portal_validate_certs: true
 # The portal verifies the AAP certificate (spec.aap.checkSSL); prefer the CA bundle below over false
-ansible_automation_portal_check_ssl: true
+openshift_automation_portal_check_ssl: true
 # PEM CA the portal trusts in addition to the cluster's trusted bundle; empty = OpenShift ingress CA (default-ingress-cert)
-ansible_automation_portal_ca_certificate: ""
+openshift_automation_portal_ca_certificate: ""
 
 # --- anything else in the AutomationPortal spec (recursively merged over the generated spec), for example
 #     {database: {enableLocalDb: false, authSecretName: portal-db-credentials}} ---
-ansible_automation_portal_spec_overrides: {}
+openshift_automation_portal_spec_overrides: {}
 
 # --- waits ---
-ansible_automation_portal_wait_retries: 60
-ansible_automation_portal_wait_delay: 20
+openshift_automation_portal_wait_retries: 60
+openshift_automation_portal_wait_delay: 20
 ...

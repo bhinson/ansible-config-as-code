@@ -1,7 +1,7 @@
 ---
 name: automation-portal-install-openshift
 description: >-
-  Install or troubleshoot Ansible automation portal on OpenShift with the ansible_automation_portal role -
+  Install or troubleshoot Ansible automation portal on OpenShift with the openshift_automation_portal role -
   automation portal operator (Technology Preview), AutomationPortal custom resource (CR), Red Hat Developer Hub
   (RHDH) operator, Ansible Automation Platform (AAP) OAuth application and catalog synchronization token, portal
   sign-in and catalog sync failures. Use when editing that role or debugging a portal install.
@@ -9,7 +9,7 @@ description: >-
 
 # Install Ansible automation portal on OpenShift
 
-Role: `roles/ansible_automation_portal` (playbook `playbooks/ansible_automation_portal.yml`, area
+Role: `roles/openshift_automation_portal` (playbook `playbooks/openshift_automation_portal.yml`, area
 `configs/automation_portal`, job template "Automation portal | Install on OpenShift"). Independent of the Automation
 Orchestrator roles. Source of truth: AAP 2.7 install guide, chapter "Install automation portal on OpenShift using the
 operator" (the Helm chart chapter is the other, older method; don't mix them).
@@ -30,7 +30,7 @@ operator" (the Helm chart chapter is the other, older method; don't mix them).
   with no error. Check fields with `oc get crd automationportals.automationportal.aap.redhat.com -o json`.
 - `status.url` stays empty; `status.deploymentCR` (docs: `backstageCR`) names the Backstage CR, and the RHDH route is
   `backstage-<deploymentCR>`. The route object name is fixed; OpenShift generates its host as `backstage-<name>-<namespace>.
-  <apps domain>` unless `spec.deployment.route.host` is set (role variable `ansible_automation_portal_route_host`). The
+  <apps domain>` unless `spec.deployment.route.host` is set (role variable `openshift_automation_portal_route_host`). The
   role waits for the route to show the expected host (after a host change the phase stays Running).
 - Removing a custom host does **not** restore the default: OpenShift generates a route host only at creation. Delete the
   route; the RHDH operator doesn't watch routes, so change an annotation on the Backstage CR (`rhdh.redhat.com/v1alpha5`)
@@ -54,7 +54,7 @@ operator" (the Helm chart chapter is the other, older method; don't mix them).
 - Catalog token: AAP API token, **write** scope. Only job templates its user can see are synchronized; portal users
   still need Execute on a job template in AAP to run it.
 - AAP returns client secrets and token values only on create. The role keeps them in `secrets-rhaap-portal`; if the
-  OAuth app exists without a matching Secret, rerun with `ansible_automation_portal_recreate_oauth_app=true`.
+  OAuth app exists without a matching Secret, rerun with `openshift_automation_portal_recreate_oauth_app=true`.
 - External identity provider users (LDAP, SAML, ...) need AAP setting "Allow external users to create OAuth2 tokens"
   (`ALLOW_OAUTH2_FOR_EXTERNAL_USERS`, gateway settings); local users don't.
 - Portal admins: `spec.permissions.adminUsers` entries `user:default/<AAP username>` / `group:default/<team>`. Portal RBAC
@@ -72,5 +72,5 @@ oc logs -n <ns> -l app.kubernetes.io/name=automation-portal-operator       # ope
   schedule lives in the portal database, so a pod restart does not run it early. Use the portal's manual sync to refresh now.
 - Catalog empty: check the token user's visibility, `spec.plugins.catalog.orgs` (single-org deployments only use the
   first entry) and label filters; changes appear after the next sync (`syncInterval`, minutes).
-- Anything not exposed as a role variable: `ansible_automation_portal_spec_overrides` (merged into the spec), e.g. an
+- Anything not exposed as a role variable: `openshift_automation_portal_spec_overrides` (merged into the spec), e.g. an
   external database (`spec.database.enableLocalDb: false` + `authSecretName`, user needs CREATEDB).

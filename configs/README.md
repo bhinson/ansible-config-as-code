@@ -72,7 +72,7 @@ tokens) and `vaulted_red_hat_automation_hub_token` (console.redhat.com offline t
 | Automation Orchestrator \| Configure LLM provider integration | automation_orchestrator_llm_integration | `automation_orchestrator_llm_integration.yml` | OpenShift API |
 | Automation Orchestrator \| Configure CVE remediation workflow | cve_remediation | `automation_orchestrator_cve_remediation.yml` | `site_cve_remediation_workflow_credentials` |
 | CVE remediation \| Assess hosts / Apply fix | cve_remediation | `cve_remediation_assess.yml` / `_apply.yml` | site machine credential (launched by the AO workflow) |
-| Automation portal \| Install on OpenShift | automation_portal | `ansible_automation_portal.yml` | OpenShift API, Ansible Automation Platform |
+| Automation portal \| Install on OpenShift | automation_portal | `openshift_automation_portal.yml` | OpenShift API, Ansible Automation Platform |
 | Automation hub \| Sync collection repositories (scheduled) | platform_management | `sync_automation_hub.yml` | Configuration as code - Ansible Automation Platform |
 
 Order on a fresh cluster: run `playbooks/initialize_automation_platform.yml` (it launches the configure job template),

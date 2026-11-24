@@ -9,9 +9,9 @@
 - name: Main | Install Ansible automation portal
   module_defaults:
     group/kubernetes.core.k8s:
-      validate_certs: "{{ ansible_automation_portal_validate_certs | bool }}"
+      validate_certs: "{{ openshift_automation_portal_validate_certs | bool }}"
     redhat.openshift.k8s:
-      validate_certs: "{{ ansible_automation_portal_validate_certs | bool }}"
+      validate_certs: "{{ openshift_automation_portal_validate_certs | bool }}"
   block:
     - name: Main | Discover settings from the cluster and job credentials
       ansible.builtin.include_tasks: discover.yml
@@ -36,7 +36,7 @@
             {{ __portal_instance.resources[0].status.version | default('unknown') }}): {{ __portal_url }}
           - >-
             Sign in with an Ansible Automation Platform account ({{ __portal_platform_url }}),
-            OAuth application '{{ ansible_automation_portal_oauth_app_name }}'.
+            OAuth application '{{ openshift_automation_portal_oauth_app_name }}'.
   always:
     - name: Main | Remove the temporary certificate authority file
       ansible.builtin.file:

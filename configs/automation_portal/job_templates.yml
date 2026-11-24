@@ -5,10 +5,10 @@ controller_templates__automation_portal:
   - name: Automation portal | Install on OpenShift
     description: >-
       Install the automation portal operator (Technology Preview) and an AutomationPortal instance, with an Ansible
-      Automation Platform OAuth application for sign-in and a catalog synchronization token (role ansible_automation_portal)
+      Automation Platform OAuth application for sign-in and a catalog synchronization token (role openshift_automation_portal)
     organization: "{{ site_organization }}"
     project: Configuration as code - ansible-config-as-code
-    playbook: playbooks/ansible_automation_portal.yml
+    playbook: playbooks/openshift_automation_portal.yml
     inventory: Configuration as code - localhost
     execution_environment: "{{ site_execution_environment }}"
     credentials:
@@ -18,22 +18,22 @@ controller_templates__automation_portal:
     survey_spec:
       name: Ansible automation portal install
       description: >-
-        Inputs for ansible_automation_portal (the Ansible Automation Platform URL, registry credentials and certificate
+        Inputs for openshift_automation_portal (the Ansible Automation Platform URL, registry credentials and certificate
         authority are discovered when empty)
       spec:
         - question_name: Namespace
           question_description: Namespace for the operator, the portal and its database
-          variable: ansible_automation_portal_namespace
+          variable: openshift_automation_portal_namespace
           type: text
           required: true
           default: automation-portal
         - question_name: Operator channel
-          variable: ansible_automation_portal_operator_channel
+          variable: openshift_automation_portal_operator_channel
           type: text
           required: true
           default: fast
         - question_name: Operator install plan approval
-          variable: ansible_automation_portal_operator_approval
+          variable: openshift_automation_portal_operator_approval
           type: multiplechoice
           choices: [Automatic, Manual]
           required: true
@@ -41,18 +41,18 @@ controller_templates__automation_portal:
         - question_name: Route hostname
           question_description: >-
             Empty = the default, backstage-<name>-<namespace>.<apps domain>; set for example portal-automation-portal.<apps domain>
-          variable: ansible_automation_portal_route_host
+          variable: openshift_automation_portal_route_host
           type: text
           required: false
           default: ""
         - question_name: Organizations to synchronize
           question_description: Comma-separated Ansible Automation Platform organizations for the portal catalog
-          variable: ansible_automation_portal_catalog_organizations
+          variable: openshift_automation_portal_catalog_organizations
           type: text
           required: false
           default: "{{ site_automation_portal_catalog_organizations }}"
         - question_name: Catalog sync interval (minutes)
-          variable: ansible_automation_portal_catalog_sync_interval
+          variable: openshift_automation_portal_catalog_sync_interval
           type: integer
           min: 5
           max: 1440
@@ -60,19 +60,19 @@ controller_templates__automation_portal:
           default: 60
         - question_name: Required job template labels
           question_description: Comma-separated; only job templates with all of these labels appear in the catalog (empty = all)
-          variable: ansible_automation_portal_job_template_labels
+          variable: openshift_automation_portal_job_template_labels
           type: text
           required: false
           default: "{{ site_automation_portal_job_template_labels }}"
         - question_name: Excluded job template labels
           question_description: Comma-separated; job templates with any of these labels are left out
-          variable: ansible_automation_portal_job_template_exclude_labels
+          variable: openshift_automation_portal_job_template_exclude_labels
           type: text
           required: false
           default: ""
         - question_name: Synchronize collections
           question_description: Show private automation hub and Galaxy collections in the catalog
-          variable: ansible_automation_portal_collections_enabled
+          variable: openshift_automation_portal_collections_enabled
           type: multiplechoice
           choices: ["false", "true"]
           required: true
@@ -81,18 +81,18 @@ controller_templates__automation_portal:
           question_description: >-
             Comma-separated, for example user:default/<Ansible Automation Platform username> or group:default/<team>
             (empty = operator default)
-          variable: ansible_automation_portal_admin_users
+          variable: openshift_automation_portal_admin_users
           type: text
           required: false
           default: "{{ site_automation_portal_admin_users }}"
         - question_name: OAuth application organization
-          variable: ansible_automation_portal_oauth_app_organization
+          variable: openshift_automation_portal_oauth_app_organization
           type: text
           required: true
           default: "{{ site_organization }}"
         - question_name: Recreate the OAuth application
           question_description: Only if the application exists but the portal Secret lacks its client secret (invalidates the old secret)
-          variable: ansible_automation_portal_recreate_oauth_app
+          variable: openshift_automation_portal_recreate_oauth_app
           type: multiplechoice
           choices: ["false", "true"]
           required: true
@@ -101,42 +101,42 @@ controller_templates__automation_portal:
           question_description: >-
             Ansible Automation Platform token with write scope; only job templates its user can see are synchronized.
             Empty = keep the stored token, or create one for this job's Ansible Automation Platform user.
-          variable: ansible_automation_portal_catalog_token
+          variable: openshift_automation_portal_catalog_token
           type: password
           required: false
         - question_name: Create a new catalog token
-          variable: ansible_automation_portal_rotate_catalog_token
+          variable: openshift_automation_portal_rotate_catalog_token
           type: multiplechoice
           choices: ["false", "true"]
           required: true
           default: "false"
         - question_name: Registry username
           question_description: For registry.redhat.io plugin images; empty = copy from the cluster global pull secret
-          variable: ansible_automation_portal_registry_username
+          variable: openshift_automation_portal_registry_username
           type: text
           required: false
           default: ""
         - question_name: Registry password
-          variable: ansible_automation_portal_registry_password
+          variable: openshift_automation_portal_registry_password
           type: password
           required: false
         - question_name: Verify TLS certificates from this job
           question_description: The job's calls to the cluster API and Ansible Automation Platform
-          variable: ansible_automation_portal_validate_certs
+          variable: openshift_automation_portal_validate_certs
           type: multiplechoice
           choices: ["true", "false"]
           required: true
           default: "true"
         - question_name: Portal verifies the Ansible Automation Platform certificate
           question_description: false sets checkSSL false; prefer supplying the certificate authority bundle below
-          variable: ansible_automation_portal_check_ssl
+          variable: openshift_automation_portal_check_ssl
           type: multiplechoice
           choices: ["true", "false"]
           required: true
           default: "true"
         - question_name: Certificate authority bundle (PEM)
           question_description: CA for Ansible Automation Platform; empty = OpenShift ingress certificate authority
-          variable: ansible_automation_portal_ca_certificate
+          variable: openshift_automation_portal_ca_certificate
           type: textarea
           required: false
           default: ""

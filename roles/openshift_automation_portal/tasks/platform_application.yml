@@ -10,8 +10,8 @@
   kubernetes.core.k8s_info:
     api_version: v1
     kind: Secret
-    namespace: "{{ ansible_automation_portal_namespace }}"
-    name: "{{ ansible_automation_portal_credentials_secret }}"
+    namespace: "{{ openshift_automation_portal_namespace }}"
+    name: "{{ openshift_automation_portal_credentials_secret }}"
   register: __portal_credentials_secret
   no_log: true
 
@@ -26,26 +26,26 @@
 
 - name: Platform application | Find the OAuth application
   ansible.builtin.uri:
-    url: "{{ __portal_platform_url }}/api/gateway/v1/applications/?name={{ ansible_automation_portal_oauth_app_name | urlencode }}"
+    url: "{{ __portal_platform_url }}/api/gateway/v1/applications/?name={{ openshift_automation_portal_oauth_app_name | urlencode }}"
     headers:
       Authorization: "Bearer {{ __portal_platform_token }}"
     ca_path: "{{ __portal_ca_file.path }}"
-    validate_certs: "{{ ansible_automation_portal_validate_certs | bool }}"
+    validate_certs: "{{ openshift_automation_portal_validate_certs | bool }}"
   register: __portal_apps
 
 - name: Platform application | Classify state
   ansible.builtin.set_fact:
     __portal_existing_app: "{{ __portal_apps.json.results | first | default({}) }}"
     __portal_need_app: >-
-      {{ __portal_apps.json.results | length == 0 or (ansible_automation_portal_recreate_oauth_app | bool) }}
+      {{ __portal_apps.json.results | length == 0 or (openshift_automation_portal_recreate_oauth_app | bool) }}
 
 - name: Platform application | Stop if the OAuth application exists but its client secret is unknown
   ansible.builtin.fail:
     msg: >-
-      Ansible Automation Platform OAuth application '{{ ansible_automation_portal_oauth_app_name }}' already exists, but
-      Secret {{ ansible_automation_portal_namespace }}/{{ ansible_automation_portal_credentials_secret }} doesn't hold
+      Ansible Automation Platform OAuth application '{{ openshift_automation_portal_oauth_app_name }}' already exists, but
+      Secret {{ openshift_automation_portal_namespace }}/{{ openshift_automation_portal_credentials_secret }} doesn't hold
       its client secret, and Ansible Automation Platform only reveals it at creation. Re-run with
-      ansible_automation_portal_recreate_oauth_app=true to delete and recreate the application.
+      openshift_automation_portal_recreate_oauth_app=true to delete and recreate the application.
   when:
     - not (__portal_need_app | bool)
     - __portal_stored['oauth-client-id'] | default('') != __portal_existing_app.client_id
@@ -57,9 +57,9 @@
     headers:
       Authorization: "Bearer {{ __portal_platform_token }}"
     ca_path: "{{ __portal_ca_file.path }}"
-    validate_certs: "{{ ansible_automation_portal_validate_certs | bool }}"
+    validate_certs: "{{ openshift_automation_portal_validate_certs | bool }}"
     status_code: 204
-  when: (ansible_automation_portal_recreate_oauth_app | bool) and __portal_existing_app | length > 0
+  when: (openshift_automation_portal_recreate_oauth_app | bool) and __portal_existing_app | length > 0
   changed_when: true
 
 - name: Platform application | Create the OAuth application
@@ -69,11 +69,11 @@
       ansible.builtin.uri:
         url: >-
           {{ __portal_platform_url }}/api/gateway/v1/organizations/?name={{
-             ansible_automation_portal_oauth_app_organization | urlencode }}
+             openshift_automation_portal_oauth_app_organization | urlencode }}
         headers:
           Authorization: "Bearer {{ __portal_platform_token }}"
         ca_path: "{{ __portal_ca_file.path }}"
-        validate_certs: "{{ ansible_automation_portal_validate_certs | bool }}"
+        validate_certs: "{{ openshift_automation_portal_validate_certs | bool }}"
       register: __portal_organization
       failed_when: __portal_organization.json.count | default(0) != 1
 
@@ -85,16 +85,16 @@
           Authorization: "Bearer {{ __portal_platform_token }}"
         body_format: json
         body:
-          name: "{{ ansible_automation_portal_oauth_app_name }}"
+          name: "{{ openshift_automation_portal_oauth_app_name }}"
           description: >-
-            Sign-in for Ansible automation portal ({{ ansible_automation_portal_namespace }}/{{ ansible_automation_portal_name }})
+            Sign-in for Ansible automation portal ({{ openshift_automation_portal_namespace }}/{{ openshift_automation_portal_name }})
           organization: "{{ __portal_organization.json.results[0].id }}"
           client_type: confidential
           authorization_grant_type: authorization-code
           # portal.yml re-checks it against the URL the deployed portal reports
           redirect_uris: "https://{{ __portal_route_host }}/api/auth/rhaap/handler/frame"
         ca_path: "{{ __portal_ca_file.path }}"
-        validate_certs: "{{ ansible_automation_portal_validate_certs | bool }}"
+        validate_certs: "{{ openshift_automation_portal_validate_certs | bool }}"
         status_code: 201
       register: __portal_app_create
       changed_when: true
@@ -113,8 +113,8 @@
 - name: Platform application | Pick the catalog token candidate
   ansible.builtin.set_fact:
     __portal_catalog_token_candidate: >-
-      {{ ansible_automation_portal_catalog_token | default('', true)
-         or ('' if ansible_automation_portal_rotate_catalog_token | bool else __portal_stored['aap-token'] | default('')) }}
+      {{ openshift_automation_portal_catalog_token | default('', true)
+         or ('' if openshift_automation_portal_rotate_catalog_token | bool else __portal_stored['aap-token'] | default('')) }}
   no_log: true
 
 - name: Platform application | Check the catalog token still works
@@ -123,16 +123,16 @@
     headers:
       Authorization: "Bearer {{ __portal_catalog_token_candidate }}"
     ca_path: "{{ __portal_ca_file.path }}"
-    validate_certs: "{{ ansible_automation_portal_validate_certs | bool }}"
+    validate_certs: "{{ openshift_automation_portal_validate_certs | bool }}"
     status_code: [200, 401]
   register: __portal_catalog_token_check
   when: __portal_catalog_token_candidate | length > 0
 
 - name: Platform application | Stop if the given catalog token is rejected
   ansible.builtin.fail:
-    msg: Ansible Automation Platform rejected the catalog token given in ansible_automation_portal_catalog_token.
+    msg: Ansible Automation Platform rejected the catalog token given in openshift_automation_portal_catalog_token.
   when:
-    - ansible_automation_portal_catalog_token | default('', true) | length > 0
+    - openshift_automation_portal_catalog_token | default('', true) | length > 0
     - __portal_catalog_token_check.status != 200
 
 - name: Platform application | Create a catalog synchronization token (write scope)
@@ -144,10 +144,10 @@
     body_format: json
     body:
       description: >-
-        Ansible automation portal catalog synchronization ({{ ansible_automation_portal_namespace }}/{{ ansible_automation_portal_name }})
+        Ansible automation portal catalog synchronization ({{ openshift_automation_portal_namespace }}/{{ openshift_automation_portal_name }})
       scope: write
     ca_path: "{{ __portal_ca_file.path }}"
-    validate_certs: "{{ ansible_automation_portal_validate_certs | bool }}"
+    validate_certs: "{{ openshift_automation_portal_validate_certs | bool }}"
     status_code: 201
   register: __portal_token_create
   when: __portal_catalog_token_candidate | length == 0 or __portal_catalog_token_check.status != 200
@@ -169,8 +169,8 @@
       kind: Secret
       type: Opaque
       metadata:
-        name: "{{ ansible_automation_portal_credentials_secret }}"
-        namespace: "{{ ansible_automation_portal_namespace }}"
+        name: "{{ openshift_automation_portal_credentials_secret }}"
+        namespace: "{{ openshift_automation_portal_namespace }}"
       stringData:
         aap-host-url: "{{ __portal_platform_url }}"
         oauth-client-id: "{{ __portal_client_id }}"

@@ -2,8 +2,8 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: {{ ansible_automation_portal_namespace }}
-{% if __portal_operator_namespace != ansible_automation_portal_namespace %}
+  name: {{ openshift_automation_portal_namespace }}
+{% if __portal_operator_namespace != openshift_automation_portal_namespace %}
 ---
 apiVersion: v1
 kind: Namespace
@@ -18,7 +18,7 @@ metadata:
   namespace: {{ __portal_operator_namespace }}
 spec:
   targetNamespaces:
-    - {{ ansible_automation_portal_namespace }}
+    - {{ openshift_automation_portal_namespace }}
 ---
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
@@ -27,7 +27,7 @@ metadata:
   namespace: {{ __portal_operator_namespace }}
 spec:
   name: automation-portal-operator
-  channel: {{ ansible_automation_portal_operator_channel }}
-  source: {{ ansible_automation_portal_operator_source }}
+  channel: {{ openshift_automation_portal_operator_channel }}
+  source: {{ openshift_automation_portal_operator_source }}
   sourceNamespace: openshift-marketplace
-  installPlanApproval: {{ ansible_automation_portal_operator_approval }}
+  installPlanApproval: {{ openshift_automation_portal_operator_approval }}

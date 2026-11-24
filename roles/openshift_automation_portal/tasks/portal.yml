@@ -3,7 +3,7 @@
   ansible.builtin.set_fact:
     __portal_spec: >-
       {{ lookup('ansible.builtin.template', 'automationportal.yml.j2') | from_yaml
-         | combine(ansible_automation_portal_spec_overrides | default({}, true), recursive=true) }}
+         | combine(openshift_automation_portal_spec_overrides | default({}, true), recursive=true) }}
 
 - name: Portal | Apply the AutomationPortal custom resource
   redhat.openshift.k8s:  # noqa: fqcn[canonical]
@@ -13,8 +13,8 @@
       apiVersion: automationportal.aap.redhat.com/v1alpha1
       kind: AutomationPortal
       metadata:
-        name: "{{ ansible_automation_portal_name }}"
-        namespace: "{{ ansible_automation_portal_namespace }}"
+        name: "{{ openshift_automation_portal_name }}"
+        namespace: "{{ openshift_automation_portal_namespace }}"
       spec: "{{ __portal_spec }}"
 
 # Phases: Pending (validating Secrets, installing the Red Hat Developer Hub operator) -> Running (all conditions True)
@@ -22,16 +22,16 @@
   kubernetes.core.k8s_info:
     api_version: automationportal.aap.redhat.com/v1alpha1
     kind: AutomationPortal
-    name: "{{ ansible_automation_portal_name }}"
-    namespace: "{{ ansible_automation_portal_namespace }}"
+    name: "{{ openshift_automation_portal_name }}"
+    namespace: "{{ openshift_automation_portal_namespace }}"
   register: __portal_instance
   until: >-
     __portal_instance.resources | length > 0 and
     (__portal_instance.resources[0].status.phase | default('')) == 'Running' and
     (__portal_instance.resources[0].status.conditions | default([])
      | selectattr('type', 'equalto', 'Ready') | selectattr('status', 'equalto', 'True') | list | length > 0)
-  retries: "{{ ansible_automation_portal_wait_retries }}"
-  delay: "{{ ansible_automation_portal_wait_delay }}"
+  retries: "{{ openshift_automation_portal_wait_retries }}"
+  delay: "{{ openshift_automation_portal_wait_delay }}"
 
 # The configuration reference documents status.url, but operator 2.3 leaves it empty and reports the managed Backstage
 # custom resource as status.deploymentCR (documented as backstageCR); the RHDH operator names its route backstage-<that name>.
@@ -41,13 +41,13 @@
   ansible.builtin.set_fact:
     __portal_route_name: >-
       backstage-{{ __portal_instance.resources[0].status.deploymentCR
-                   | default(__portal_instance.resources[0].status.backstageCR | default(ansible_automation_portal_name)) }}
+                   | default(__portal_instance.resources[0].status.backstageCR | default(openshift_automation_portal_name)) }}
 
 - name: Portal | Set the expected hostname
   ansible.builtin.set_fact:
     __portal_route_host: >-
       {{ __portal_route_host_custom
-         or (__portal_route_name ~ '-' ~ ansible_automation_portal_namespace ~ '.' ~ __portal_apps_domain) }}
+         or (__portal_route_name ~ '-' ~ openshift_automation_portal_namespace ~ '.' ~ __portal_apps_domain) }}
 
 # OpenShift generates a route host only when the route is created; removing a custom host later leaves the old one in
 # place. To return to the default, delete the route once; the Red Hat Developer Hub (RHDH) operator doesn't watch its
@@ -56,7 +56,7 @@
   kubernetes.core.k8s_info:
     api_version: route.openshift.io/v1
     kind: Route
-    namespace: "{{ ansible_automation_portal_namespace }}"
+    namespace: "{{ openshift_automation_portal_namespace }}"
     name: "{{ __portal_route_name }}"
   register: __portal_current_route
 
@@ -65,7 +65,7 @@
     state: absent
     api_version: route.openshift.io/v1
     kind: Route
-    namespace: "{{ ansible_automation_portal_namespace }}"
+    namespace: "{{ openshift_automation_portal_namespace }}"
     name: "{{ __portal_route_name }}"
   when:
     - __portal_route_host_custom | length == 0
@@ -78,7 +78,7 @@
     state: patched
     api_version: rhdh.redhat.com/v1alpha5
     kind: Backstage
-    namespace: "{{ ansible_automation_portal_namespace }}"
+    namespace: "{{ openshift_automation_portal_namespace }}"
     name: "{{ __portal_route_name | regex_replace('^backstage-', '') }}"
     definition:
       metadata:
@@ -90,12 +90,12 @@
   kubernetes.core.k8s_info:
     api_version: route.openshift.io/v1
     kind: Route
-    namespace: "{{ ansible_automation_portal_namespace }}"
+    namespace: "{{ openshift_automation_portal_namespace }}"
     name: "{{ __portal_route_name }}"
   register: __portal_route
   until: (__portal_route.resources[0].spec.host | default('')) == __portal_route_host
-  retries: "{{ ansible_automation_portal_wait_retries }}"
-  delay: "{{ ansible_automation_portal_wait_delay }}"
+  retries: "{{ openshift_automation_portal_wait_retries }}"
+  delay: "{{ openshift_automation_portal_wait_delay }}"
 
 - name: Portal | Keep the portal URL
   ansible.builtin.set_fact:
@@ -112,7 +112,7 @@
     body:
       redirect_uris: "{{ __portal_url }}/api/auth/rhaap/handler/frame"
     ca_path: "{{ __portal_ca_file.path }}"
-    validate_certs: "{{ ansible_automation_portal_validate_certs | bool }}"
+    validate_certs: "{{ openshift_automation_portal_validate_certs | bool }}"
   when: __portal_app_redirect_uris | trim != __portal_url ~ '/api/auth/rhaap/handler/frame'
   changed_when: true
 ...

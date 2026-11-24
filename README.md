@@ -25,8 +25,8 @@ Red Hat certified collections first, Red Hat validated content second, and commu
 | `roles/automation_orchestrator_llm_integration/` | Configure the AO LLM provider integration (generic) |
 | `playbooks/automation_orchestrator_cve_remediation.yml` | Add the AO CVE remediation workflow (CVE lookup, LLM triage, approval, Satellite fix) |
 | `roles/automation_orchestrator_cve_remediation/` | Build and publish that workflow (generic) |
-| `playbooks/ansible_automation_portal.yml` | Install Ansible automation portal on OpenShift (operator, AAP OAuth application, catalog token) |
-| `roles/ansible_automation_portal/` | Install and connect Ansible automation portal (generic; independent of AO) |
+| `playbooks/openshift_automation_portal.yml` | Install Ansible automation portal on OpenShift (operator, AAP OAuth application, catalog token) |
+| `roles/openshift_automation_portal/` | Install and connect Ansible automation portal (generic; independent of AO) |
 | `playbooks/cve_remediation_assess.yml`, `cve_remediation_apply.yml` | Host playbooks the workflow launches (assess read-only; apply after approval) |
 | `configs/` | AAP configuration data by area (see `configs/README.md`) |
 | `playbooks/initialize_automation_platform.yml` | Initialize AAP (ansible-core only) and launch the configure job template |

@@ -36,7 +36,7 @@ certified/validated, private hub, Galaxy, in that order), so the repo holds no g
   `automation_orchestrator_llm_integration` (connect AO to a large language model (LLM) provider),
   `automation_orchestrator_cve_remediation` (AO CVE remediation workflow; its job templates run
   `playbooks/cve_remediation_assess.yml` / `cve_remediation_apply.yml` on managed hosts),
-  `ansible_automation_portal` (install Ansible automation portal with its operator and connect it to AAP; independent
+  `openshift_automation_portal` (install Ansible automation portal with its operator and connect it to AAP; independent
   of AO). One role per concern, each with
   its own job template and survey.
 - User inputs: AAP job template **surveys** (`configs/<area>/job_templates.yml`). Survey answers are strings, so roles accept

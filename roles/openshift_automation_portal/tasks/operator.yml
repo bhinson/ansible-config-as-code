@@ -16,8 +16,8 @@
     namespace: "{{ __portal_operator_namespace }}"
   register: __portal_subscription
   until: (__portal_subscription.resources[0].status.installedCSV | default('')) | length > 0
-  retries: "{{ ansible_automation_portal_wait_retries }}"
-  delay: "{{ ansible_automation_portal_wait_delay }}"
+  retries: "{{ openshift_automation_portal_wait_retries }}"
+  delay: "{{ openshift_automation_portal_wait_delay }}"
 
 - name: Operator | Wait for the ClusterServiceVersion to succeed
   kubernetes.core.k8s_info:
@@ -27,6 +27,6 @@
     namespace: "{{ __portal_operator_namespace }}"
   register: __portal_cluster_service_version
   until: (__portal_cluster_service_version.resources[0].status.phase | default('')) == 'Succeeded'
-  retries: "{{ ansible_automation_portal_wait_retries }}"
-  delay: "{{ ansible_automation_portal_wait_delay }}"
+  retries: "{{ openshift_automation_portal_wait_retries }}"
+  delay: "{{ openshift_automation_portal_wait_delay }}"
 ...

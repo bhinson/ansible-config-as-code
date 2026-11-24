@@ -27,7 +27,7 @@ are linked, never copied, so they stay current.
 - Any AO API work: the OpenAPI specification at `https://<AO host>/api_docs/v1/openapi.json` is the documented contract.
 
 ## Ansible automation portal (only when working on it)
-- Installing Ansible automation portal on OpenShift, `roles/ansible_automation_portal`, the AutomationPortal custom
+- Installing Ansible automation portal on OpenShift, `roles/openshift_automation_portal`, the AutomationPortal custom
   resource, portal sign-in or catalog synchronization failures: follow
   [skills/automation-portal-install-openshift/SKILL.md](skills/automation-portal-install-openshift/SKILL.md).
 
