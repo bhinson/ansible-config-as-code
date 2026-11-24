@@ -1,0 +1,62 @@
+---
+# The AAP operator stops managing the MCP server when spec.mcp.disabled is true but doesn't delete an existing
+# AnsibleMCPServer, so this deletes it too (the MCP operator then removes the deployment, service, route and ConfigMap).
+
+- name: Remove | Disable the MCP server on the Ansible Automation Platform custom resource
+  redhat.openshift.k8s:  # noqa: fqcn[canonical]
+    state: present
+    apply: true
+    definition:
+      apiVersion: aap.ansible.com/v1alpha1
+      kind: AnsibleAutomationPlatform
+      metadata:
+        name: "{{ __mcp_platform_name }}"
+        namespace: "{{ __mcp_platform_namespace }}"
+      spec:
+        mcp:
+          disabled: true
+  when: __mcp_platform_spec_mcp | length > 0
+
+- name: Remove | Delete the AnsibleMCPServer
+  redhat.openshift.k8s:  # noqa: fqcn[canonical]
+    state: absent
+    api_version: mcpserver.ansible.com/v1alpha1
+    kind: AnsibleMCPServer
+    namespace: "{{ __mcp_platform_namespace }}"
+    name: "{{ __mcp_name }}"
+    wait: true
+
+- name: Remove | Delete the OAuth application
+  when: openshift_automation_mcp_oauth_app_create | bool
+  block:
+    - name: Remove | Find the OAuth application
+      ansible.builtin.uri:
+        url: "{{ __mcp_platform_url }}/api/gateway/v1/applications/?name={{ openshift_automation_mcp_oauth_app_name | urlencode }}"
+        headers:
+          Authorization: "Bearer {{ __mcp_platform_token }}"
+        ca_path: "{{ __mcp_ca_file.path }}"
+        validate_certs: "{{ openshift_automation_mcp_validate_certs | bool }}"
+      register: __mcp_apps
+
+    - name: Remove | Delete the OAuth application in Ansible Automation Platform
+      ansible.builtin.uri:
+        url: "{{ __mcp_platform_url }}/api/gateway/v1/applications/{{ item.id }}/"
+        method: DELETE
+        headers:
+          Authorization: "Bearer {{ __mcp_platform_token }}"
+        ca_path: "{{ __mcp_ca_file.path }}"
+        validate_certs: "{{ openshift_automation_mcp_validate_certs | bool }}"
+        status_code: 204
+      loop: "{{ __mcp_apps.json.results }}"
+      loop_control:
+        label: "{{ item.name }}"
+      changed_when: true
+
+    - name: Remove | Delete the OAuth application Secret
+      redhat.openshift.k8s:  # noqa: fqcn[canonical]
+        state: absent
+        api_version: v1
+        kind: Secret
+        namespace: "{{ __mcp_platform_namespace }}"
+        name: "{{ openshift_automation_mcp_oauth_app_secret }}"
+...

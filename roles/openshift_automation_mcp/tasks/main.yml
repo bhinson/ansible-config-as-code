@@ -1,0 +1,52 @@
+---
+# Uses redhat.openshift (applies objects) and kubernetes.core (lookups), both Red Hat certified, for cluster objects, and
+# ansible.builtin.uri for the Ansible Automation Platform (AAP) gateway API (an OAuth client secret is only returned by
+# the create call) and the MCP server health endpoint.
+# Cluster authentication: K8S_AUTH_* environment variables (job credential).
+# AAP authentication: aap_hostname / aap_token (job credential; only needed for the OAuth application).
+# Docs: AAP 2.7 extend guide, "Deploy the MCP server on an operator-based installation", "Enable OAuth 2.1 on the MCP
+# server", "Troubleshoot MCP server errors".
+
+- name: Main | Check the requested state
+  ansible.builtin.assert:
+    that: openshift_automation_mcp_state in ['present', 'absent']
+    fail_msg: openshift_automation_mcp_state must be present or absent.
+    quiet: true
+
+- name: Main | Configure the MCP server for Ansible Automation Platform
+  module_defaults:
+    group/kubernetes.core.k8s:
+      validate_certs: "{{ openshift_automation_mcp_validate_certs | bool }}"
+    redhat.openshift.k8s:
+      validate_certs: "{{ openshift_automation_mcp_validate_certs | bool }}"
+  block:
+    - name: Main | Discover settings from the cluster and job credentials
+      ansible.builtin.include_tasks: discover.yml
+
+    - name: Main | Deploy the MCP server
+      ansible.builtin.include_tasks: mcp.yml
+      when: openshift_automation_mcp_state == 'present'
+
+    - name: Main | Create the Ansible Automation Platform OAuth application
+      ansible.builtin.include_tasks: platform_application.yml
+      when:
+        - openshift_automation_mcp_state == 'present'
+        - openshift_automation_mcp_oauth_enabled | bool
+        - openshift_automation_mcp_oauth_app_create | bool
+
+    - name: Main | Remove the MCP server
+      ansible.builtin.include_tasks: remove.yml
+      when: openshift_automation_mcp_state == 'absent'
+
+    - name: Main | Report
+      ansible.builtin.debug:
+        msg: >-
+          {{ __mcp_report if openshift_automation_mcp_state == 'present'
+             else ['MCP server ' ~ __mcp_name ~ ' removed from ' ~ __mcp_platform_namespace ~ '/' ~ __mcp_platform_name] }}
+  always:
+    - name: Main | Remove the temporary certificate authority file
+      ansible.builtin.file:
+        path: "{{ __mcp_ca_file.path }}"
+        state: absent
+      when: __mcp_ca_file.path is defined
+...

@@ -11,9 +11,10 @@ AAP objects as data for `infra.aap_configuration.dispatch`, split into **areas**
 | `cve_remediation/` | if selected | inventory "CVE remediation - sample hosts", job templates "CVE remediation \| Assess hosts" / "\| Apply fix" and "Automation Orchestrator \| Configure CVE remediation workflow" |
 | `automation_portal/` | if selected | job template "Automation portal \| Install on OpenShift" |
 | `automation_developer_hub/` | if selected | job template "Developer Hub \| Install with the Ansible plug-ins on OpenShift" |
+| `automation_mcp/` | if selected | job template "MCP server \| Install on OpenShift" |
 | `platform_management/` | opt-in | Galaxy credentials for the private automation hub mirrors and console.redhat.com, the organizations' Galaxy credential order, and the scheduled job "Automation hub \| Sync collection repositories" |
 
-`site_configuration_areas` selects the areas (default: the six use-case areas). Each area defines its objects under
+`site_configuration_areas` selects the areas (default: the seven use-case areas). Each area defines its objects under
 `<dispatch variable>__<area>` (for example `controller_templates__cve_remediation`); `common/aggregate.yml` merges
 whatever was loaded into the names the dispatch role reads, and `playbooks/tasks/load_configuration.yml` does the
 loading for the configure, initialize and cleanup playbooks. Reference objects by **name**, never by ID.
@@ -23,7 +24,7 @@ and an LLM provider integration (from the integration areas or set up by hand). 
 `site_cve_remediation_workflow_credentials: []` and give the AO URL, admin password and certificate authority (CA) in the
 survey of "Configure CVE remediation workflow"; no OpenShift access is needed then. `automation_developer_hub` is independent too; it and
 `automation_portal` share the Red Hat Developer Hub operator (role `openshift_developer_hub_operator`, which adopts an
-existing install). `automation_portal` is independent of AO:
+existing install). `automation_mcp` is independent as well (it changes `spec.mcp` of the AAP custom resource). `automation_portal` is independent of AO:
 it needs only an AAP for the portal to connect to (this job's AAP credential). `platform_management` changes AAP
 itself, needs an AAP administrator token, and is never removed by the cleanup playbook (it adopts existing objects).
 
@@ -39,7 +40,7 @@ ansible-playbook playbooks/initialize_automation_platform.yml -e @/path/to/site.
 
 | Setting | Example | Customize to |
 |---|---|---|
-| `site_configuration_areas` | the six use-case areas | the areas you want; add `platform_management` to manage AAP itself |
+| `site_configuration_areas` | the seven use-case areas | the areas you want; add `platform_management` to manage AAP itself |
 | `site_organization` | `Default` | AAP organization that owns the objects |
 | `site_project_scm_url` / `site_project_scm_branch` | this repo / `main` | your fork, if you change the code |
 | `site_automation_platform_validate_certs` | `true` | `false` only if jobs can't verify the AAP gateway certificate |

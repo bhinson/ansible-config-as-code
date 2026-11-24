@@ -1,0 +1,139 @@
+---
+# The AAP operator turns spec.mcp of the AnsibleAutomationPlatform CR into an AnsibleMCPServer (<AAP CR name>-mcp) only
+# when that AnsibleMCPServer doesn't exist yet; later spec.mcp changes are not passed on. The extend guide's fix (and
+# what this role does when the wanted settings differ from the running ones): delete the AnsibleMCPServer, and the AAP
+# operator recreates it from spec.mcp. The AAP CR's bundle_cacert_secret is passed on to the MCP server by the operator.
+# The MCP operator writes every extra setting into a ConfigMap as "{{ value }}", so a YAML boolean would become
+# "True"; values are therefore always lower-case strings here.
+
+- name: MCP | Build the wanted extra settings
+  ansible.builtin.set_fact:
+    # Later entries win (user settings over the role's); names upper-case, values strings with lower-case booleans
+    __mcp_extra_settings: >-
+      {{ dict(__mcp_all | map(attribute='setting') | map('string') | map('upper')
+              | zip(__mcp_all | map(attribute='value') | map('string')
+                    | map('regex_replace', '^(?i:true)$', 'true') | map('regex_replace', '^(?i:false)$', 'false')))
+         | dict2items(key_name='setting', value_name='value') }}
+  vars:
+    __mcp_all: >-
+      {{ ([{'setting': 'OAUTH2_ENABLED', 'value': 'true'}] if openshift_automation_mcp_oauth_enabled | bool else [])
+         + ([{'setting': 'OAUTH2_DISCOVERY_TIMEOUT', 'value': openshift_automation_mcp_oauth_discovery_timeout | string}]
+            if openshift_automation_mcp_oauth_enabled | bool
+               and openshift_automation_mcp_oauth_discovery_timeout | string | length > 0 else [])
+         + ([{'setting': 'IGNORE_CERTIFICATE_ERRORS', 'value': 'true'}]
+            if openshift_automation_mcp_ignore_certificate_errors | bool else [])
+         + __mcp_user_settings }}
+
+- name: MCP | Build the wanted spec.mcp
+  ansible.builtin.set_fact:
+    __mcp_spec: >-
+      {{ {'disabled': false,
+          'allow_write_operations': openshift_automation_mcp_allow_write_operations | bool,
+          'extra_settings': __mcp_extra_settings}
+         | combine({'route_host': openshift_automation_mcp_route_host} if openshift_automation_mcp_route_host | length > 0 else {})
+         | combine(openshift_automation_mcp_spec_overrides, recursive=True) }}
+
+- name: MCP | Read the existing AnsibleMCPServer
+  kubernetes.core.k8s_info:
+    api_version: mcpserver.ansible.com/v1alpha1
+    kind: AnsibleMCPServer
+    namespace: "{{ __mcp_platform_namespace }}"
+    name: "{{ __mcp_name }}"
+  register: __mcp_existing
+
+# Compare the keys this role sets (and route_host, which falls back to the default when unset) with the running server
+- name: MCP | Decide whether the AnsibleMCPServer must be recreated
+  ansible.builtin.set_fact:
+    __mcp_recreate: >-
+      {{ __mcp_existing.resources | length > 0
+         and (__mcp_compare_keys | map('extract', __mcp_running) | list)
+             != (__mcp_compare_keys | map('extract', __mcp_wanted) | list) }}
+  vars:
+    __mcp_compare_keys: "{{ (__mcp_spec.keys() | list + ['route_host']) | difference(['disabled', 'name']) | unique }}"
+    __mcp_defaults: {route_host: "", allow_write_operations: false, extra_settings: []}
+    __mcp_running: >-
+      {{ __mcp_defaults | combine(__mcp_existing.resources[0].spec | default({}) if __mcp_existing.resources | length > 0 else {}) }}
+    __mcp_wanted: "{{ __mcp_defaults | combine(__mcp_spec) }}"
+
+- name: MCP | Set spec.mcp on the Ansible Automation Platform custom resource
+  redhat.openshift.k8s:  # noqa: fqcn[canonical]
+    state: present
+    apply: true
+    definition:
+      apiVersion: aap.ansible.com/v1alpha1
+      kind: AnsibleAutomationPlatform
+      metadata:
+        name: "{{ __mcp_platform_name }}"
+        namespace: "{{ __mcp_platform_namespace }}"
+      spec:
+        mcp: "{{ __mcp_spec }}"
+
+- name: MCP | Delete the AnsibleMCPServer so the operator recreates it with the new settings
+  redhat.openshift.k8s:  # noqa: fqcn[canonical]
+    state: absent
+    api_version: mcpserver.ansible.com/v1alpha1
+    kind: AnsibleMCPServer
+    namespace: "{{ __mcp_platform_namespace }}"
+    name: "{{ __mcp_name }}"
+    wait: true
+  when: __mcp_recreate | bool
+
+- name: MCP | Wait for the AnsibleMCPServer with the wanted settings
+  kubernetes.core.k8s_info:
+    api_version: mcpserver.ansible.com/v1alpha1
+    kind: AnsibleMCPServer
+    namespace: "{{ __mcp_platform_namespace }}"
+    name: "{{ __mcp_name }}"
+  register: __mcp_server
+  until:
+    - __mcp_server.resources | length > 0
+    - __mcp_server.resources[0].spec.allow_write_operations | default(false) | bool
+      == openshift_automation_mcp_allow_write_operations | bool
+    - __mcp_server.resources[0].status.URL | default('') | length > 0
+    - __mcp_server.resources[0].status.conditions | default([]) | selectattr('type', 'equalto', 'Successful')
+      | selectattr('status', 'equalto', 'True') | list | length > 0
+  retries: "{{ openshift_automation_mcp_wait_retries }}"
+  delay: "{{ openshift_automation_mcp_wait_delay }}"
+
+- name: MCP | Wait for the MCP server deployment
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    namespace: "{{ __mcp_platform_namespace }}"
+    name: "{{ __mcp_name }}"
+  register: __mcp_deployment
+  until:
+    - __mcp_deployment.resources | length > 0
+    - __mcp_deployment.resources[0].status.observedGeneration | default(0) >= __mcp_deployment.resources[0].metadata.generation
+    - __mcp_deployment.resources[0].status.updatedReplicas | default(0) == __mcp_deployment.resources[0].spec.replicas
+    - __mcp_deployment.resources[0].status.availableReplicas | default(0) == __mcp_deployment.resources[0].spec.replicas
+    - __mcp_deployment.resources[0].status.replicas | default(0) == __mcp_deployment.resources[0].spec.replicas
+  retries: "{{ openshift_automation_mcp_wait_retries }}"
+  delay: "{{ openshift_automation_mcp_wait_delay }}"
+
+- name: MCP | Keep the MCP server URL
+  ansible.builtin.set_fact:
+    __mcp_url: "{{ __mcp_server.resources[0].status.URL | regex_replace('/+$', '') }}"
+
+- name: MCP | Check the MCP server health endpoint
+  ansible.builtin.uri:
+    url: "{{ __mcp_url }}/api/v1/health"
+    ca_path: "{{ __mcp_ca_file.path }}"
+    validate_certs: "{{ openshift_automation_mcp_validate_certs | bool }}"
+  register: __mcp_health
+  until: __mcp_health.status == 200
+  retries: "{{ openshift_automation_mcp_wait_retries }}"
+  delay: "{{ openshift_automation_mcp_wait_delay }}"
+
+- name: MCP | Prepare the report
+  ansible.builtin.set_fact:
+    __mcp_report:
+      - >-
+        MCP server {{ __mcp_platform_namespace }}/{{ __mcp_name }} is running
+        ({{ 'read-write' if openshift_automation_mcp_allow_write_operations | bool else 'read-only' }},
+        health {{ __mcp_health.json.status | default(__mcp_health.status) }}{{ ', recreated' if __mcp_recreate | bool else '' }}).
+      - "All tools: {{ __mcp_url }}/mcp; toolset discovery: {{ __mcp_url }}/mcp/discover; one toolset: {{ __mcp_url }}/mcp/<toolset>"
+      - >-
+        Authenticate with an Ansible Automation Platform personal access token (Authorization: Bearer <token>){{
+        ' or OAuth 2.1 with Ansible Automation Platform accounts' if openshift_automation_mcp_oauth_enabled | bool else '' }}.
+...

@@ -14,7 +14,8 @@ aap_configuration_dispatcher_exclude_roles: []
 # Use-case areas: automation_orchestrator_install, automation_orchestrator_integration,
 # automation_orchestrator_llm_integration, cve_remediation (needs an AO with an AAP and an LLM integration),
 # automation_portal (Ansible automation portal on OpenShift; independent of AO), automation_developer_hub (Red Hat
-# Developer Hub with the Ansible plug-ins; shares the Developer Hub operator with automation_portal).
+# Developer Hub with the Ansible plug-ins; shares the Developer Hub operator with automation_portal), automation_mcp
+# (MCP server for Ansible Automation Platform on an operator-based install).
 # platform_management changes AAP itself (organization Galaxy credentials, private automation hub sync schedule) and
 # needs an AAP administrator token; it is opt-in and never removed by the cleanup playbook.
 site_configuration_areas:
@@ -24,6 +25,7 @@ site_configuration_areas:
   - cve_remediation
   - automation_portal
   - automation_developer_hub
+  - automation_mcp
 
 # AAP organization that owns every object below (AAP's built-in "Default" works).
 site_organization: Default

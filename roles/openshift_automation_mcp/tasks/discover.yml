@@ -1,0 +1,114 @@
+---
+- name: Discover | Normalize survey-style inputs
+  ansible.builtin.set_fact:
+    # "SETTING=value,SETTING=value" (survey) or a list of {setting, value}
+    __mcp_user_settings: >-
+      {{ (dict(openshift_automation_mcp_extra_settings.split(',') | map('trim') | select | map('split', '=', 1)
+               | map('map', 'trim') | map('list') | list)
+          | dict2items(key_name='setting', value_name='value'))
+         if openshift_automation_mcp_extra_settings is string else openshift_automation_mcp_extra_settings }}
+    __mcp_redirect_uris: >-
+      {{ (openshift_automation_mcp_oauth_app_redirect_uris.split(',')
+          if openshift_automation_mcp_oauth_app_redirect_uris is string
+          else openshift_automation_mcp_oauth_app_redirect_uris) | map('trim') | select | list }}
+
+- name: Discover | Check the extra settings
+  ansible.builtin.assert:
+    that:
+      - __mcp_user_settings | selectattr('setting', 'defined') | selectattr('value', 'defined') | list | length
+        == __mcp_user_settings | length
+    fail_msg: openshift_automation_mcp_extra_settings needs SETTING=value entries (or a list of {setting, value}).
+    quiet: true
+
+- name: Discover | Read the Ansible Automation Platform custom resources
+  kubernetes.core.k8s_info:
+    api_version: aap.ansible.com/v1alpha1
+    kind: AnsibleAutomationPlatform
+    namespace: "{{ openshift_automation_mcp_platform_namespace | default(omit, true) }}"
+    name: "{{ openshift_automation_mcp_platform_name | default(omit, true) }}"
+  register: __mcp_platforms
+
+# A named CR wins; else the CR whose status URL is the AAP URL of this job; else the only CR in the cluster.
+- name: Discover | Pick the Ansible Automation Platform custom resource
+  ansible.builtin.set_fact:
+    __mcp_platform: >-
+      {{ (__mcp_platforms.resources if openshift_automation_mcp_platform_name | length > 0
+          else (__mcp_matching if __mcp_matching | length > 0 else __mcp_platforms.resources)) }}
+  vars:
+    __mcp_wanted_url: >-
+      {{ (openshift_automation_mcp_platform_url | default('', true) or aap_hostname | default(''))
+         | regex_replace('^(?!https?://)(.+)$', 'https://\1') | regex_replace('/+$', '') }}
+    __mcp_matching: >-
+      {{ __mcp_platforms.resources | selectattr('status.URL', 'defined')
+         | selectattr('status.URL', 'equalto', __mcp_wanted_url) | list }}
+
+- name: Discover | Check that exactly one Ansible Automation Platform custom resource was found
+  ansible.builtin.assert:
+    that: __mcp_platform | length == 1
+    fail_msg: >-
+      Found {{ __mcp_platform | length }} matching AnsibleAutomationPlatform custom resources
+      ({{ __mcp_platforms.resources | map(attribute='metadata') | map(attribute='name') | join(', ') }}). Set
+      openshift_automation_mcp_platform_namespace and openshift_automation_mcp_platform_name.
+    quiet: true
+
+- name: Discover | Keep the Ansible Automation Platform instance details
+  ansible.builtin.set_fact:
+    __mcp_platform_namespace: "{{ __mcp_platform[0].metadata.namespace }}"
+    __mcp_platform_name: "{{ __mcp_platform[0].metadata.name }}"
+    __mcp_platform_spec_mcp: "{{ __mcp_platform[0].spec.mcp | default({}) }}"
+    # Same name rule as the AAP operator
+    __mcp_name: >-
+      {{ (__mcp_platform[0].spec.mcp | default({})).name | default(__mcp_platform[0].metadata.name ~ '-mcp') }}
+    __mcp_platform_url: >-
+      {{ ((openshift_automation_mcp_platform_url | default('', true) or aap_hostname | default('', true)
+           or __mcp_platform[0].status.URL | default(''))
+          | regex_replace('^(?!https?://)(.+)$', 'https://\1')) | regex_replace('/+$', '') }}
+
+- name: Discover | Resolve the Ansible Automation Platform token
+  ansible.builtin.set_fact:
+    __mcp_platform_token: >-
+      {{ openshift_automation_mcp_platform_token if openshift_automation_mcp_platform_token | length > 0
+         else ((aap_token.token if aap_token is mapping else aap_token) | default('')) }}
+  no_log: true
+
+- name: Discover | Check the Ansible Automation Platform credentials for the OAuth application
+  ansible.builtin.assert:
+    that:
+      - __mcp_platform_url is match('https?://.+')
+      - __mcp_platform_token | length > 0
+      - openshift_automation_mcp_oauth_app_client_type in ['public', 'confidential']
+      - __mcp_redirect_uris | length > 0
+    fail_msg: >-
+      The OAuth application needs the Ansible Automation Platform URL and a token (Red Hat Ansible Automation Platform
+      credential, or openshift_automation_mcp_platform_url / _platform_token), client type public or confidential and
+      at least one redirect URI.
+    quiet: true
+  when:
+    - openshift_automation_mcp_oauth_enabled | bool or openshift_automation_mcp_state == 'absent'
+    - openshift_automation_mcp_oauth_app_create | bool
+
+- name: Discover | Read the OpenShift ingress certificate authority
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: ConfigMap
+    namespace: openshift-config-managed
+    name: default-ingress-cert
+  register: __mcp_ingress_ca
+  when: openshift_automation_mcp_ca_certificate | length == 0
+
+- name: Discover | Create a temporary certificate authority file for calls to the routes
+  ansible.builtin.tempfile:
+    state: file
+    suffix: .pem
+  register: __mcp_ca_file
+  check_mode: false
+
+- name: Discover | Write the certificate authority file
+  ansible.builtin.copy:
+    content: >-
+      {{ openshift_automation_mcp_ca_certificate if openshift_automation_mcp_ca_certificate | length > 0
+         else __mcp_ingress_ca.resources[0].data['ca-bundle.crt'] }}
+    dest: "{{ __mcp_ca_file.path }}"
+    mode: "0600"
+  check_mode: false
+...

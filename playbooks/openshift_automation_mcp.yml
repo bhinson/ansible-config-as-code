@@ -1,0 +1,13 @@
+---
+# Deploy and configure the Model Context Protocol (MCP) server for Ansible Automation Platform (AAP) on an operator-based
+# AAP installation on OpenShift (spec.mcp of the AnsibleAutomationPlatform custom resource), optionally with an AAP OAuth
+# application for OAuth 2.1 sign-in of MCP clients.
+# In AAP: job template "MCP server | Install on OpenShift" (survey supplies inputs; credentials: OpenShift API
+# (configuration as code) + Red Hat Ansible Automation Platform).
+#   Local test: source scripts/env.sh && ansible-playbook playbooks/openshift_automation_mcp.yml -e @my-vars.yml
+- name: MCP server for Ansible Automation Platform on OpenShift
+  hosts: localhost
+  gather_facts: false
+  roles:
+    - role: openshift_automation_mcp
+...

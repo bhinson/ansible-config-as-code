@@ -27,6 +27,8 @@ Red Hat certified collections first, Red Hat validated content second, and commu
 | `roles/automation_orchestrator_cve_remediation/` | Build and publish that workflow (generic) |
 | `playbooks/openshift_automation_portal.yml` | Install Ansible automation portal on OpenShift (operator, AAP OAuth application, catalog token) |
 | `roles/openshift_automation_portal/` | Install and connect Ansible automation portal (generic; independent of AO) |
+| `playbooks/openshift_automation_mcp.yml` | MCP server for AAP on an operator-based AAP on OpenShift (optional OAuth 2.1 application) |
+| `roles/openshift_automation_mcp/` | Deploy and configure the MCP server through the AAP operator (generic) |
 | `playbooks/openshift_automation_developer_hub.yml` | Red Hat Developer Hub with the Ansible plug-ins on OpenShift (AAP sign-in, plug-in token) |
 | `roles/openshift_automation_developer_hub/` | Deploy and connect Developer Hub with the Ansible plug-ins (generic) |
 | `roles/openshift_developer_hub_operator/` | Install or adopt the Red Hat Developer Hub operator (shared by the Developer Hub and portal roles) |
@@ -68,8 +70,8 @@ rest of this repo, then launches it.
    **"Configuration as code | Apply Ansible Automation Platform configuration"** (your site values become its extra vars),
    then launches that job template, which creates every other object in `configs/common` and the selected areas.
 3. Afterwards, change the configuration in git and re-launch that job template. Run the Automation Orchestrator job
-   templates in the order listed in `configs/README.md`, "Automation portal | Install on OpenShift" for the portal, and "Developer Hub | Install with the Ansible plug-ins on
-   OpenShift" for Developer Hub.
+   templates in the order listed in `configs/README.md`, "Automation portal | Install on OpenShift" for the portal, "Developer Hub | Install with the Ansible plug-ins on
+   OpenShift" for Developer Hub, and "MCP server | Install on OpenShift" for the MCP server.
 
 **Removing it again:** `ansible-playbook playbooks/cleanup_automation_platform.yml -e @/path/to/site.yml [--check]`
 deletes, by exact name from `configs/common` and the selected areas (never `platform_management`) and only in the site
@@ -77,7 +79,7 @@ organization, the job templates,
 inventory sources, inventories (with their hosts), the project, the credentials and the custom credential type, in that
 order. Playbook run history is kept (AAP itself removes project and inventory sync records along with their project or
 source); nothing else in AAP is touched. `--check` lists what it would delete. Objects that
-Automation Orchestrator and automation portal roles create (in AO, OpenShift or the AAP gateway) are not removed.
+Automation Orchestrator, automation portal and MCP server roles create (in AO, OpenShift or the AAP gateway) are not removed.
 
 **Without the initialization playbook** (AAP UI): create the same objects by hand: the credential type (inputs and injectors from
 `configs/common/credential_types.yml`), the two credentials, a project for this repo, an inventory with one

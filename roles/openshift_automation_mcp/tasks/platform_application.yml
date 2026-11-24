@@ -1,0 +1,112 @@
+---
+# Extend guide, "Enable OAuth 2.1 on the MCP server": an OAuth application on the AAP gateway with authorization code
+# grant, client type public or confidential, the MCP clients' redirect URIs and PKCE required (pkce_required, new in
+# AAP 2.7). AAP gateway API /api/gateway/v1/applications/; a client secret is only returned by the create call, so a
+# new confidential application's client ID and secret are stored in a Secret right away.
+
+- name: Platform application | Find the OAuth application
+  ansible.builtin.uri:
+    url: "{{ __mcp_platform_url }}/api/gateway/v1/applications/?name={{ openshift_automation_mcp_oauth_app_name | urlencode }}"
+    headers:
+      Authorization: "Bearer {{ __mcp_platform_token }}"
+    ca_path: "{{ __mcp_ca_file.path }}"
+    validate_certs: "{{ openshift_automation_mcp_validate_certs | bool }}"
+  register: __mcp_apps
+
+- name: Platform application | Look up the Ansible Automation Platform organization
+  ansible.builtin.uri:
+    url: >-
+      {{ __mcp_platform_url }}/api/gateway/v1/organizations/?name={{ openshift_automation_mcp_oauth_app_organization | urlencode }}
+    headers:
+      Authorization: "Bearer {{ __mcp_platform_token }}"
+    ca_path: "{{ __mcp_ca_file.path }}"
+    validate_certs: "{{ openshift_automation_mcp_validate_certs | bool }}"
+  register: __mcp_organization
+  failed_when: __mcp_organization.json.count | default(0) != 1
+
+- name: Platform application | Build the wanted OAuth application
+  ansible.builtin.set_fact:
+    __mcp_existing_app: "{{ __mcp_apps.json.results | first | default({}) }}"
+    __mcp_app_body: >-
+      {{ {'name': openshift_automation_mcp_oauth_app_name,
+          'description': 'OAuth 2.1 sign-in for MCP clients of the MCP server ' ~ __mcp_platform_namespace ~ '/' ~ __mcp_name,
+          'organization': __mcp_organization.json.results[0].id | int,
+          'client_type': openshift_automation_mcp_oauth_app_client_type,
+          'authorization_grant_type': 'authorization-code',
+          'redirect_uris': __mcp_redirect_uris | join(' '),
+          'pkce_required': true} }}
+
+# The client type can't be changed in place (a confidential client needs a new secret)
+- name: Platform application | Stop if the existing OAuth application has another client type
+  ansible.builtin.fail:
+    msg: >-
+      Ansible Automation Platform OAuth application '{{ openshift_automation_mcp_oauth_app_name }}' exists with client
+      type {{ __mcp_existing_app.client_type }}, not {{ openshift_automation_mcp_oauth_app_client_type }}. Delete it in
+      Ansible Automation Platform (Access Management > OAuth Applications) or use another name.
+  when:
+    - __mcp_existing_app | length > 0
+    - __mcp_existing_app.client_type != openshift_automation_mcp_oauth_app_client_type
+
+- name: Platform application | Create the OAuth application
+  ansible.builtin.uri:
+    url: "{{ __mcp_platform_url }}/api/gateway/v1/applications/"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ __mcp_platform_token }}"
+    body_format: json
+    body: "{{ __mcp_app_body }}"
+    ca_path: "{{ __mcp_ca_file.path }}"
+    validate_certs: "{{ openshift_automation_mcp_validate_certs | bool }}"
+    status_code: 201
+  register: __mcp_app_create
+  when: __mcp_existing_app | length == 0
+  changed_when: true
+  no_log: true
+
+- name: Platform application | Store the client ID and secret of the new confidential application
+  redhat.openshift.k8s:  # noqa: fqcn[canonical]
+    state: present
+    apply: true
+    definition:
+      apiVersion: v1
+      kind: Secret
+      type: Opaque
+      metadata:
+        name: "{{ openshift_automation_mcp_oauth_app_secret }}"
+        namespace: "{{ __mcp_platform_namespace }}"
+      stringData:
+        client_id: "{{ __mcp_app_create.json.client_id }}"
+        client_secret: "{{ __mcp_app_create.json.client_secret }}"
+  when:
+    - __mcp_app_create is not skipped
+    - openshift_automation_mcp_oauth_app_client_type == 'confidential'
+  no_log: true
+
+- name: Platform application | Update the redirect URIs, description and PKCE of the existing OAuth application
+  ansible.builtin.uri:
+    url: "{{ __mcp_platform_url }}/api/gateway/v1/applications/{{ __mcp_existing_app.id }}/"
+    method: PATCH
+    headers:
+      Authorization: "Bearer {{ __mcp_platform_token }}"
+    body_format: json
+    body: "{{ __mcp_app_body | dict2items | selectattr('key', 'in', ['description', 'organization', 'redirect_uris', 'pkce_required']) | items2dict }}"
+    ca_path: "{{ __mcp_ca_file.path }}"
+    validate_certs: "{{ openshift_automation_mcp_validate_certs | bool }}"
+  when:
+    - __mcp_existing_app | length > 0
+    - (__mcp_existing_app.redirect_uris | default('')).split() | sort != __mcp_redirect_uris | sort
+      or not (__mcp_existing_app.pkce_required | default(false) | bool)
+      or __mcp_existing_app.description | default('') != __mcp_app_body.description
+      or __mcp_existing_app.organization | default(0) | int != __mcp_app_body.organization
+  changed_when: true
+
+- name: Platform application | Add the OAuth application to the report
+  ansible.builtin.set_fact:
+    __mcp_report: >-
+      {{ __mcp_report + [
+           "OAuth application '" ~ openshift_automation_mcp_oauth_app_name ~ "' (" ~ openshift_automation_mcp_oauth_app_client_type
+           ~ ', PKCE required), client ID ' ~ (__mcp_app_create.json.client_id if __mcp_app_create is not skipped else __mcp_existing_app.client_id)
+           ~ (', client secret in Secret ' ~ __mcp_platform_namespace ~ '/' ~ openshift_automation_mcp_oauth_app_secret
+              if openshift_automation_mcp_oauth_app_client_type == 'confidential' else '')
+           ~ '. Example: claude mcp add --transport http --client-id <client ID> --callback-port 6661 aap-mcp ' ~ __mcp_url ~ '/mcp'] }}
+...

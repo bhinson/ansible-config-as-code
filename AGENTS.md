@@ -36,6 +36,11 @@ are linked, never copied, so they stay current.
   (`roles/openshift_developer_hub_operator`), sign-in, plug-in or catalog failures: follow
   [skills/automation-developer-hub-install-openshift/SKILL.md](skills/automation-developer-hub-install-openshift/SKILL.md).
 
+## MCP server for Ansible Automation Platform (only when working on it)
+- Deploying or configuring the MCP server on an operator-based AAP (`roles/openshift_automation_mcp`), `spec.mcp` /
+  AnsibleMCPServer, OAuth 2.1 sign-in, certificate errors: follow
+  [skills/automation-mcp-install-openshift/SKILL.md](skills/automation-mcp-install-openshift/SKILL.md).
+
 ## Always
 - **Never** write self-referential Jinja under task `vars:` (`key: "{{ key | default([]) }}"`); it causes recursive
   template loops. Follow upstream [ansible-jinja-no-self-ref](https://github.com/redhat-cop/aap_configuration_extended/blob/devel/skills/ansible-jinja-no-self-ref/SKILL.md) and run the

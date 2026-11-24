@@ -1,0 +1,13 @@
+---
+galaxy_info:
+  author: ansible-config-as-code contributors
+  description: >-
+    Deploy and configure the MCP server for Ansible Automation Platform on OpenShift (operator-based installation),
+    optionally with an OAuth application for OAuth 2.1 sign-in
+  license: GPL-3.0-or-later
+  min_ansible_version: "2.16"
+  platforms:
+    - name: GenericLinux
+      versions: [all]
+dependencies: []
+...

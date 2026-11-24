@@ -1,0 +1,66 @@
+---
+# openshift_automation_mcp: deploy and configure the Model Context Protocol (MCP) server for Ansible Automation Platform
+# (AAP) on an operator-based AAP installation on OpenShift. The AAP operator deploys it from spec.mcp of the
+# AnsibleAutomationPlatform custom resource (CR) as an AnsibleMCPServer named <AAP CR name>-mcp.
+# Optionally creates the AAP OAuth application that MCP clients use for OAuth 2.1 sign-in.
+# Everything is discovered from the cluster or the job's credentials when left empty. Site values belong in job
+# template surveys.
+
+# present = deploy/configure; absent = disable the MCP server and delete its AnsibleMCPServer (and the OAuth
+# application when openshift_automation_mcp_oauth_app_create is true)
+openshift_automation_mcp_state: present
+
+# --- AAP instance ---
+# AnsibleAutomationPlatform CR that gets the MCP server. Empty = the CR whose status URL matches aap_hostname /
+# openshift_automation_mcp_platform_url, or the only CR in the cluster.
+openshift_automation_mcp_platform_namespace: ""
+openshift_automation_mcp_platform_name: ""
+
+# --- MCP server (spec.mcp) ---
+# Server-level permission: false = read-only tools; true = tools that change AAP (launch jobs, create, delete), still
+# limited by the role-based access control (RBAC) of each user's token
+openshift_automation_mcp_allow_write_operations: false
+# Route hostname; empty = OpenShift's default, <AAP CR name>-mcp-<namespace>.<apps domain>
+openshift_automation_mcp_route_host: ""
+# OAuth 2.1 sign-in with AAP accounts (extra setting OAUTH2_ENABLED); personal access tokens keep working
+openshift_automation_mcp_oauth_enabled: false
+# Seconds for the OpenID Connect discovery probe at startup (OAUTH2_DISCOVERY_TIMEOUT); empty = server default (10)
+openshift_automation_mcp_oauth_discovery_timeout: ""
+# Skip verification of the AAP certificate (IGNORE_CERTIFICATE_ERRORS; development only). Prefer the AAP CR's
+# bundle_cacert_secret, which the AAP operator passes on to the MCP server.
+openshift_automation_mcp_ignore_certificate_errors: false
+# More MCP server settings (environment variables), as a list of {setting, value} or a comma-separated string
+# "SETTING=value,SETTING=value" (survey), for example DEFAULT_PAGE_SIZE=25. Win over the settings above.
+openshift_automation_mcp_extra_settings: []
+# Anything else in spec.mcp (recursively merged over the generated spec), for example
+# {api: {resource_requirements: {limits: {memory: 2Gi}}}}
+openshift_automation_mcp_spec_overrides: {}
+
+# --- AAP OAuth application for MCP clients (only with openshift_automation_mcp_oauth_enabled) ---
+openshift_automation_mcp_oauth_app_create: false
+openshift_automation_mcp_oauth_app_name: Ansible MCP server
+openshift_automation_mcp_oauth_app_organization: Default
+# public (clients send only the client ID) or confidential (the client secret is stored in the Secret below)
+openshift_automation_mcp_oauth_app_client_type: public
+# Redirect URIs of the MCP clients (list or comma-separated); the extend guide's Claude Code example uses port 6661
+openshift_automation_mcp_oauth_app_redirect_uris:
+  - http://localhost:6661/callback
+  - http://127.0.0.1:6661/callback
+# Secret (in the AAP namespace) that receives client_id / client_secret of a new confidential application
+openshift_automation_mcp_oauth_app_secret: ansible-mcp-oauth-application
+
+# Empty = aap_hostname (Red Hat Ansible Automation Platform credential), else the AAP CR's status URL
+openshift_automation_mcp_platform_url: ""
+# Token for the AAP gateway API (OAuth application only). Empty = aap_token (same credential).
+openshift_automation_mcp_platform_token: ""
+
+# --- TLS ---
+# Verify TLS certificates on this job's calls to the cluster API, AAP and the MCP route
+openshift_automation_mcp_validate_certs: true
+# PEM certificate authority (CA) for AAP and the MCP route; empty = OpenShift ingress CA (default-ingress-cert)
+openshift_automation_mcp_ca_certificate: ""
+
+# --- waits ---
+openshift_automation_mcp_wait_retries: 60
+openshift_automation_mcp_wait_delay: 10
+...

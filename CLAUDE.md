@@ -39,7 +39,8 @@ certified/validated, private hub, Galaxy, in that order), so the repo holds no g
   `openshift_automation_portal` (install Ansible automation portal with its operator and connect it to AAP; independent
   of AO), `openshift_automation_developer_hub` (Red Hat Developer Hub with the Ansible plug-ins, AAP sign-in) and the
   shared `openshift_developer_hub_operator` (installs or adopts the RHDH operator for both; included with
-  `include_role`, not a job template of its own). One role per concern, each with
+  `include_role`, not a job template of its own), `openshift_automation_mcp` (Model Context Protocol (MCP) server for AAP through `spec.mcp`
+  of the AnsibleAutomationPlatform custom resource, optional OAuth application). One role per concern, each with
   its own job template and survey.
 - User inputs: AAP job template **surveys** (`configs/<area>/job_templates.yml`). Survey answers are strings, so roles accept
   comma-separated lists and `"true"`/`"false"`, and treat `""` as unset (`default(x, true)`).
@@ -123,6 +124,7 @@ for what's specific to this repo.
   (CVE remediation workflow, AO workflow definitions).
 - Developer Hub only: `skills/automation-developer-hub-install-openshift` (Developer Hub with the Ansible plug-ins and the
   shared RHDH operator role).
+- MCP server only: `skills/automation-mcp-install-openshift` (spec.mcp, AnsibleMCPServer recreation, OAuth 2.1).
 - Automation portal only: `skills/automation-portal-install-openshift` (install/troubleshoot the portal operator and
   AutomationPortal, AAP OAuth application and catalog token).
 

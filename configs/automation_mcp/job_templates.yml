@@ -1,0 +1,121 @@
+---
+# Area automation_mcp: deploy and configure the Model Context Protocol (MCP) server for Ansible Automation Platform on
+# an operator-based Ansible Automation Platform installation on OpenShift. Independent of the other areas.
+controller_templates__automation_mcp:
+  - name: MCP server | Install on OpenShift
+    description: >-
+      Deploy and configure the MCP server for Ansible Automation Platform through the Ansible Automation Platform
+      operator, optionally with an OAuth application for OAuth 2.1 sign-in of MCP clients (role openshift_automation_mcp)
+    organization: "{{ site_organization }}"
+    project: Configuration as code - ansible-config-as-code
+    playbook: playbooks/openshift_automation_mcp.yml
+    inventory: Configuration as code - localhost
+    execution_environment: "{{ site_execution_environment }}"
+    credentials:
+      - Configuration as code - OpenShift API
+      - Configuration as code - Ansible Automation Platform
+    survey_enabled: true
+    survey_spec:
+      name: MCP server install
+      description: >-
+        Inputs for openshift_automation_mcp (the Ansible Automation Platform instance and certificate authority are
+        discovered when empty)
+      spec:
+        - question_name: State
+          question_description: present = deploy or update; absent = disable and delete the MCP server
+          variable: openshift_automation_mcp_state
+          type: multiplechoice
+          choices: [present, absent]
+          required: true
+          default: present
+        - question_name: Ansible Automation Platform namespace
+          question_description: Namespace of the AnsibleAutomationPlatform custom resource; empty = discover from this job's credential
+          variable: openshift_automation_mcp_platform_namespace
+          type: text
+          required: false
+          default: ""
+        - question_name: Ansible Automation Platform instance name
+          question_description: Name of the AnsibleAutomationPlatform custom resource; empty = discover
+          variable: openshift_automation_mcp_platform_name
+          type: text
+          required: false
+          default: ""
+        - question_name: Allow write operations
+          question_description: >-
+            false = read-only tools; true = AI agents can launch jobs and change Ansible Automation Platform, limited by
+            each user's permissions
+          variable: openshift_automation_mcp_allow_write_operations
+          type: multiplechoice
+          choices: ["false", "true"]
+          required: true
+          default: "false"
+        - question_name: Route hostname
+          question_description: Empty = the default, <instance name>-mcp-<namespace>.<apps domain>
+          variable: openshift_automation_mcp_route_host
+          type: text
+          required: false
+          default: ""
+        - question_name: Enable OAuth 2.1 sign-in
+          question_description: MCP clients sign in with Ansible Automation Platform accounts; personal access tokens keep working
+          variable: openshift_automation_mcp_oauth_enabled
+          type: multiplechoice
+          choices: ["false", "true"]
+          required: true
+          default: "false"
+        - question_name: Create the OAuth application
+          question_description: Create or update the Ansible Automation Platform OAuth application for MCP clients (with OAuth 2.1 sign-in)
+          variable: openshift_automation_mcp_oauth_app_create
+          type: multiplechoice
+          choices: ["false", "true"]
+          required: true
+          default: "false"
+        - question_name: OAuth application name
+          variable: openshift_automation_mcp_oauth_app_name
+          type: text
+          required: true
+          default: Ansible MCP server
+        - question_name: OAuth application organization
+          variable: openshift_automation_mcp_oauth_app_organization
+          type: text
+          required: true
+          default: "{{ site_organization }}"
+        - question_name: OAuth application client type
+          question_description: public = clients send only the client ID; confidential = the client secret is stored in a Secret
+          variable: openshift_automation_mcp_oauth_app_client_type
+          type: multiplechoice
+          choices: [public, confidential]
+          required: true
+          default: public
+        - question_name: OAuth redirect URIs
+          question_description: Comma-separated callback URLs of the MCP clients
+          variable: openshift_automation_mcp_oauth_app_redirect_uris
+          type: text
+          required: true
+          default: http://localhost:6661/callback,http://127.0.0.1:6661/callback
+        - question_name: Extra MCP server settings
+          question_description: Comma-separated SETTING=value, for example DEFAULT_PAGE_SIZE=25,SESSION_TIMEOUT=1200
+          variable: openshift_automation_mcp_extra_settings
+          type: text
+          required: false
+          default: ""
+        - question_name: MCP server ignores Ansible Automation Platform certificate errors
+          question_description: Development only; prefer bundle_cacert_secret on the Ansible Automation Platform custom resource
+          variable: openshift_automation_mcp_ignore_certificate_errors
+          type: multiplechoice
+          choices: ["false", "true"]
+          required: true
+          default: "false"
+        - question_name: Verify TLS certificates from this job
+          question_description: The job's calls to the cluster API, Ansible Automation Platform and the MCP server route
+          variable: openshift_automation_mcp_validate_certs
+          type: multiplechoice
+          choices: ["true", "false"]
+          required: true
+          default: "true"
+        - question_name: Certificate authority bundle (PEM)
+          question_description: CA for Ansible Automation Platform and the MCP server route; empty = OpenShift ingress certificate authority
+          variable: openshift_automation_mcp_ca_certificate
+          type: textarea
+          required: false
+          default: ""
+...
