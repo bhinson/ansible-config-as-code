@@ -57,6 +57,7 @@ ansible-playbook playbooks/initialize_automation_platform.yml -e @/path/to/site.
 | `site_automation_portal_collections_enabled` / `_collection_repositories` | `"false"` / `""` | show the private automation hub's collections in the portal, and which hub repositories (automation_portal) |
 | `site_developer_hub_operator_channel` | `fast` | Red Hat Developer Hub operator channel (`fast-<version>` = z-stream only) (automation_developer_hub) |
 | `site_automation_developer_hub_admin_users` / `_super_users` | `""` | Developer Hub RBAC administrators / super users, `user:default/<AAP username>` (automation_developer_hub) |
+| `site_automation_mcp_allow_write_operations` | `"false"` | `"true"` = MCP server tools may change AAP (survey default; automation_mcp) |
 | `site_private_automation_hub_url` | `https://aap.example.com` | your private automation hub (platform_management) |
 | `site_galaxy_credential_organizations` | `[{name: Default}]` | organizations whose Galaxy credential order is managed (platform_management) |
 | `site_galaxy_credentials` | private hub ×4, console.redhat.com ×2, Ansible Galaxy | the ordered list; private hub only is fastest once the mirrors hold everything (platform_management) |

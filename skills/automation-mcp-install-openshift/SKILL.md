@@ -31,6 +31,8 @@ chapter "Deploy the MCP server on Ansible Automation Platform" (operator-based i
   differs. The AnsibleMCPServer keeps its owner reference, so the deletion triggers an AAP reconcile that recreates it.
 - **`spec.mcp.disabled: true` doesn't delete** an existing AnsibleMCPServer; delete it as well.
 - **Extra setting values**: the MCP operator renders `"{{ item.value }}"`, so YAML `true` becomes `"True"`. Write strings.
+  (The server's own boolean settings, like `ALLOW_WRITE_OPERATIONS`, are parsed case-insensitively, so the operator's
+  `"True"`/`"False"` for `allow_write_operations` works.)
 - **Certificate errors** (`SELF_SIGNED_CERT_IN_CHAIN`, 400s): give the AAP CR a `bundle_cacert_secret` (key
   `bundle-ca.crt`); the init container logs "Added customer CA bundle". `IGNORE_CERTIFICATE_ERRORS=true` is development only.
 - 406 from AAP on job output: ask the AI agent for JSON output (documented limitation).

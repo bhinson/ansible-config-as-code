@@ -67,6 +67,9 @@ site_automation_portal_collection_repositories: ""
 site_developer_hub_operator_channel: fast
 site_automation_developer_hub_admin_users: ""
 site_automation_developer_hub_super_users: ""
+# MCP server survey default (automation_mcp): "true" lets AI agents launch jobs and change AAP (still limited by each
+# user's permissions); "false" = read-only tools.
+site_automation_mcp_allow_write_operations: "false"
 
 # --- platform_management area (only used when that area is selected) ---
 # Private automation hub base URL (usually the AAP gateway URL); its repositories are served under /api/galaxy/content/.

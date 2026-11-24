@@ -48,7 +48,7 @@ controller_templates__automation_mcp:
           type: multiplechoice
           choices: ["false", "true"]
           required: true
-          default: "false"
+          default: "{{ site_automation_mcp_allow_write_operations }}"
         - question_name: Route hostname
           question_description: Empty = the default, <instance name>-mcp-<namespace>.<apps domain>
           variable: openshift_automation_mcp_route_host
