@@ -1,4 +1,13 @@
 ---
+# The portal runs on Red Hat Developer Hub (RHDH). Install or adopt the RHDH operator first with the shared role, so it
+# is managed in one place (the portal operator would otherwise create its own Subscription in openshift-operators).
+- name: Operator | Install or adopt the Red Hat Developer Hub operator
+  ansible.builtin.include_role:
+    name: openshift_developer_hub_operator
+  vars:
+    openshift_developer_hub_operator_validate_certs: "{{ openshift_automation_portal_validate_certs }}"
+  when: openshift_automation_portal_manage_developer_hub_operator | bool
+
 # The operator supports OwnNamespace, SingleNamespace and AllNamespaces. The install guide installs it into the portal
 # namespace, so the OperatorGroup targets that namespace. When an AutomationPortal is created, the operator installs the
 # Red Hat Developer Hub (RHDH) operator itself if it is missing.

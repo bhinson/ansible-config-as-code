@@ -1,0 +1,189 @@
+---
+# Sign-in with Ansible Automation Platform (AAP) accounts uses the auth-backend-module-rhaap-provider plug-in from the
+# AAP automation-portal OCI bundle, configured the way the automation portal operator does it. It is not covered by the
+# RHDH 1.10 docs (their sign-in providers are RHBK, GitHub, Microsoft, GitLab, PingFederate and guest).
+# OAuth application: authorization code, confidential, redirect <URL>/api/auth/rhaap/handler/frame. Plug-in token: AAP
+# API token with write (read and write) scope. AAP shows client secrets and token values only when it creates them, so
+# they are stored in the environment Secret right away.
+
+- name: Platform application | Read the existing environment Secret
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Secret
+    namespace: "{{ openshift_automation_developer_hub_namespace }}"
+    name: "{{ openshift_automation_developer_hub_name }}-secrets"
+  register: __developer_hub_env_secret
+  no_log: true
+
+- name: Platform application | Decode the stored values
+  ansible.builtin.set_fact:
+    __developer_hub_stored: >-
+      {{ dict(__developer_hub_env_secret.resources[0].data.keys()
+              | zip(__developer_hub_env_secret.resources[0].data.values() | map('b64decode')))
+         if __developer_hub_env_secret.resources | length > 0 and __developer_hub_env_secret.resources[0].data is defined
+         else {} }}
+  no_log: true
+
+- name: Platform application | Find the OAuth application
+  ansible.builtin.uri:
+    url: >-
+      {{ __developer_hub_platform_url }}/api/gateway/v1/applications/?name={{
+         openshift_automation_developer_hub_oauth_app_name | urlencode }}
+    headers:
+      Authorization: "Bearer {{ __developer_hub_platform_token }}"
+    ca_path: "{{ __developer_hub_ca_file.path }}"
+    validate_certs: "{{ openshift_automation_developer_hub_validate_certs | bool }}"
+  register: __developer_hub_apps
+
+- name: Platform application | Classify state
+  ansible.builtin.set_fact:
+    __developer_hub_existing_app: "{{ __developer_hub_apps.json.results | first | default({}) }}"
+    __developer_hub_need_app: >-
+      {{ __developer_hub_apps.json.results | length == 0 or (openshift_automation_developer_hub_recreate_oauth_app | bool) }}
+
+- name: Platform application | Stop if the OAuth application exists but its client secret is unknown
+  ansible.builtin.fail:
+    msg: >-
+      Ansible Automation Platform OAuth application '{{ openshift_automation_developer_hub_oauth_app_name }}' already
+      exists, but Secret {{ openshift_automation_developer_hub_namespace }}/{{ openshift_automation_developer_hub_name }}-secrets
+      doesn't hold its client secret, and Ansible Automation Platform only reveals it at creation. Re-run with
+      openshift_automation_developer_hub_recreate_oauth_app=true to delete and recreate the application.
+  when:
+    - not (__developer_hub_need_app | bool)
+    - __developer_hub_stored['OAUTH_CLIENT_ID'] | default('') != __developer_hub_existing_app.client_id
+
+- name: Platform application | Delete the existing OAuth application (recreate requested)
+  ansible.builtin.uri:
+    url: "{{ __developer_hub_platform_url }}/api/gateway/v1/applications/{{ __developer_hub_existing_app.id }}/"
+    method: DELETE
+    headers:
+      Authorization: "Bearer {{ __developer_hub_platform_token }}"
+    ca_path: "{{ __developer_hub_ca_file.path }}"
+    validate_certs: "{{ openshift_automation_developer_hub_validate_certs | bool }}"
+    status_code: 204
+  when: (openshift_automation_developer_hub_recreate_oauth_app | bool) and __developer_hub_existing_app | length > 0
+  changed_when: true
+
+- name: Platform application | Create the OAuth application
+  when: __developer_hub_need_app | bool
+  block:
+    - name: Platform application | Look up the Ansible Automation Platform organization
+      ansible.builtin.uri:
+        url: >-
+          {{ __developer_hub_platform_url }}/api/gateway/v1/organizations/?name={{
+             openshift_automation_developer_hub_oauth_app_organization | urlencode }}
+        headers:
+          Authorization: "Bearer {{ __developer_hub_platform_token }}"
+        ca_path: "{{ __developer_hub_ca_file.path }}"
+        validate_certs: "{{ openshift_automation_developer_hub_validate_certs | bool }}"
+      register: __developer_hub_organization
+      failed_when: __developer_hub_organization.json.count | default(0) != 1
+
+    - name: Platform application | Create the OAuth application in Ansible Automation Platform
+      ansible.builtin.uri:
+        url: "{{ __developer_hub_platform_url }}/api/gateway/v1/applications/"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ __developer_hub_platform_token }}"
+        body_format: json
+        body:
+          name: "{{ openshift_automation_developer_hub_oauth_app_name }}"
+          description: >-
+            Sign-in for Red Hat Developer Hub ({{ openshift_automation_developer_hub_namespace }}/{{ openshift_automation_developer_hub_name }})
+          organization: "{{ __developer_hub_organization.json.results[0].id }}"
+          client_type: confidential
+          authorization_grant_type: authorization-code
+          redirect_uris: "https://{{ __developer_hub_route_host }}/api/auth/rhaap/handler/frame"
+        ca_path: "{{ __developer_hub_ca_file.path }}"
+        validate_certs: "{{ openshift_automation_developer_hub_validate_certs | bool }}"
+        status_code: 201
+      register: __developer_hub_app_create
+      changed_when: true
+      no_log: true
+
+- name: Platform application | Keep the OAuth application details
+  ansible.builtin.set_fact:
+    __developer_hub_app_id: "{{ __developer_hub_app_create.json.id if __developer_hub_need_app | bool else __developer_hub_existing_app.id }}"
+    __developer_hub_app_redirect_uris: >-
+      {{ __developer_hub_app_create.json.redirect_uris if __developer_hub_need_app | bool
+         else __developer_hub_existing_app.redirect_uris }}
+    __developer_hub_client_id: >-
+      {{ __developer_hub_app_create.json.client_id if __developer_hub_need_app | bool else __developer_hub_existing_app.client_id }}
+    __developer_hub_client_secret: >-
+      {{ __developer_hub_app_create.json.client_secret if __developer_hub_need_app | bool
+         else __developer_hub_stored['OAUTH_CLIENT_SECRET'] }}
+  no_log: true
+
+- name: Platform application | Pick the plug-in token candidate
+  ansible.builtin.set_fact:
+    __developer_hub_token_candidate: >-
+      {{ openshift_automation_developer_hub_plugin_token | default('', true)
+         or ('' if openshift_automation_developer_hub_rotate_plugin_token | bool else __developer_hub_stored['AAP_TOKEN'] | default('')) }}
+  no_log: true
+
+- name: Platform application | Check the plug-in token still works
+  ansible.builtin.uri:
+    url: "{{ __developer_hub_platform_url }}/api/gateway/v1/me/"
+    headers:
+      Authorization: "Bearer {{ __developer_hub_token_candidate }}"
+    ca_path: "{{ __developer_hub_ca_file.path }}"
+    validate_certs: "{{ openshift_automation_developer_hub_validate_certs | bool }}"
+    status_code: [200, 401]
+  register: __developer_hub_token_check
+  when: __developer_hub_token_candidate | length > 0
+
+- name: Platform application | Stop if the given plug-in token is rejected
+  ansible.builtin.fail:
+    msg: Ansible Automation Platform rejected the token given in openshift_automation_developer_hub_plugin_token.
+  when:
+    - openshift_automation_developer_hub_plugin_token | default('', true) | length > 0
+    - __developer_hub_token_check.status != 200
+
+- name: Platform application | Create a plug-in token (write scope)
+  ansible.builtin.uri:
+    url: "{{ __developer_hub_platform_url }}/api/gateway/v1/tokens/"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ __developer_hub_platform_token }}"
+    body_format: json
+    body:
+      description: >-
+        Red Hat Developer Hub Ansible plug-ins ({{ openshift_automation_developer_hub_namespace }}/{{ openshift_automation_developer_hub_name }})
+      scope: write
+    ca_path: "{{ __developer_hub_ca_file.path }}"
+    validate_certs: "{{ openshift_automation_developer_hub_validate_certs | bool }}"
+    status_code: 201
+  register: __developer_hub_token_create
+  when: __developer_hub_token_candidate | length == 0 or __developer_hub_token_check.status != 200
+  changed_when: true
+  no_log: true
+
+# RHDH secrets are environment variables in a Secret (RHDH 1.10 "Provision your custom configuration"); the app-config
+# references them as ${NAME}. ENABLE_AUTH_PROVIDER_MODULE_OVERRIDE lets the AAP sign-in module replace the built-in
+# providers (as the automation portal operator sets it). BACKEND_SECRET is generated once and kept.
+- name: Platform application | Store the environment Secret right away (values AAP shows only once)
+  redhat.openshift.k8s:  # noqa: fqcn[canonical]
+    state: present
+    apply: true
+    definition:
+      apiVersion: v1
+      kind: Secret
+      type: Opaque
+      metadata:
+        name: "{{ openshift_automation_developer_hub_name }}-secrets"
+        namespace: "{{ openshift_automation_developer_hub_namespace }}"
+        labels:
+          rhdh.redhat.com/ext-config-sync: "true"
+      stringData:
+        AAP_HOST_URL: "{{ __developer_hub_platform_url }}"
+        AAP_TOKEN: >-
+          {{ __developer_hub_token_create.json.token if __developer_hub_token_create is not skipped
+             else __developer_hub_token_candidate }}
+        OAUTH_CLIENT_ID: "{{ __developer_hub_client_id }}"
+        OAUTH_CLIENT_SECRET: "{{ __developer_hub_client_secret }}"
+        BACKEND_SECRET: >-
+          {{ __developer_hub_stored['BACKEND_SECRET']
+             | default(lookup('ansible.builtin.password', '/dev/null', length=48, chars=['ascii_letters', 'digits']), true) }}
+        ENABLE_AUTH_PROVIDER_MODULE_OVERRIDE: "true"
+  no_log: true
+...

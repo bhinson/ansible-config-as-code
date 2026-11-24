@@ -37,7 +37,9 @@ certified/validated, private hub, Galaxy, in that order), so the repo holds no g
   `automation_orchestrator_cve_remediation` (AO CVE remediation workflow; its job templates run
   `playbooks/cve_remediation_assess.yml` / `cve_remediation_apply.yml` on managed hosts),
   `openshift_automation_portal` (install Ansible automation portal with its operator and connect it to AAP; independent
-  of AO). One role per concern, each with
+  of AO), `openshift_automation_developer_hub` (Red Hat Developer Hub with the Ansible plug-ins, AAP sign-in) and the
+  shared `openshift_developer_hub_operator` (installs or adopts the RHDH operator for both; included with
+  `include_role`, not a job template of its own). One role per concern, each with
   its own job template and survey.
 - User inputs: AAP job template **surveys** (`configs/<area>/job_templates.yml`). Survey answers are strings, so roles accept
   comma-separated lists and `"true"`/`"false"`, and treat `""` as unset (`default(x, true)`).
@@ -50,6 +52,7 @@ certified/validated, private hub, Galaxy, in that order), so the repo holds no g
 
 ## Conventions (from infra.aap_configuration / aap_configuration_extended)
 - `.yml` extension; YAML documents start with `---` and end with `...`; 2-space indent; `{{ var }}` with spaces.
+- **PEM/newline joins in double-quoted YAML**: in a folded block (`>-`) Ansible keeps `'\n'` as a literal backslash-n.
 - **No file names containing `secrets`**: `.gitignore` excludes `*secrets*.yml`, so such a task file silently never
   reaches the repo (use `credentials.yml`). Check with `git ls-files --others --ignored --exclude-standard roles configs playbooks`.
 - Role variables prefixed with the role name (`openshift_automation_orchestrator_*`); internal/loop vars prefixed `__`.
@@ -118,6 +121,8 @@ for what's specific to this repo.
 - AO only: `skills/automation-orchestrator-install-openshift` (install/size/troubleshoot AO), `skills/automation-orchestrator-platform-integration` (AAP integration + single sign-on),
   `skills/automation-orchestrator-llm-integration` (LLM provider integration), `skills/automation-orchestrator-cve-remediation`
   (CVE remediation workflow, AO workflow definitions).
+- Developer Hub only: `skills/automation-developer-hub-install-openshift` (Developer Hub with the Ansible plug-ins and the
+  shared RHDH operator role).
 - Automation portal only: `skills/automation-portal-install-openshift` (install/troubleshoot the portal operator and
   AutomationPortal, AAP OAuth application and catalog token).
 

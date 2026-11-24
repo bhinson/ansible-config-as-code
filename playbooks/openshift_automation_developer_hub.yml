@@ -1,0 +1,11 @@
+---
+# Red Hat Developer Hub on OpenShift with the Ansible plug-ins, signed in and connected to Ansible Automation Platform
+# (AAP). In AAP: job template "Developer Hub | Install with the Ansible plug-ins on OpenShift" (survey supplies inputs;
+# credentials: OpenShift API (configuration as code) + Red Hat Ansible Automation Platform).
+#   Local test: source scripts/env.sh && ansible-playbook playbooks/openshift_automation_developer_hub.yml -e @my-vars.yml
+- name: Red Hat Developer Hub with the Ansible plug-ins on OpenShift
+  hosts: localhost
+  gather_facts: false
+  roles:
+    - role: openshift_automation_developer_hub
+...

@@ -1,0 +1,45 @@
+{% set __oci = 'oci://' ~ openshift_automation_developer_hub_plugins_image ~ ':' ~ openshift_automation_developer_hub_plugins_tag %}
+---
+# Dynamic plug-ins (AAP 2.7 extend guide, "Configure the dynamic plug-ins", OCI delivery), plus the AAP sign-in module
+# (same OCI bundle; as the automation portal operator configures it) and the RBAC plug-in (RHDH 1.10 docs).
+includes:
+  - dynamic-plugins.default.yaml
+plugins:
+  - package: ./dynamic-plugins/dist/backstage-community-plugin-rbac
+    disabled: false
+  - package: "{{ __oci }}!ansible-plugin-backstage-rhaap"
+    disabled: false
+    pluginConfig:
+      dynamicPlugins:
+        frontend:
+          ansible.plugin-backstage-rhaap:
+            appIcons:
+              - importName: AnsibleLogo
+                name: AnsibleLogo
+            dynamicRoutes:
+              - importName: AnsiblePage
+                menuItem:
+                  icon: AnsibleLogo
+                  text: Ansible
+                path: /ansible
+  - package: "{{ __oci }}!ansible-plugin-backstage-self-service"
+    disabled: false
+    pluginConfig:
+      dynamicPlugins:
+        frontend:
+          ansible.plugin-backstage-self-service:
+            scaffolderFieldExtensions:
+              - importName: AAPTokenFieldExtension
+              - importName: AAPResourcePickerExtension
+  - package: "{{ __oci }}!ansible-backstage-plugin-catalog-backend-module-rhaap"
+    disabled: false
+    pluginConfig: {}
+  - package: "{{ __oci }}!ansible-plugin-scaffolder-backend-module-backstage-rhaap"
+    disabled: false
+    pluginConfig:
+      dynamicPlugins:
+        backend:
+          ansible.plugin-scaffolder-backend-module-backstage-rhaap: null
+  - package: "{{ __oci }}!ansible-backstage-plugin-auth-backend-module-rhaap-provider"
+    disabled: false
+    pluginConfig: {}

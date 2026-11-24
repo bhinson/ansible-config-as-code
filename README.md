@@ -27,6 +27,9 @@ Red Hat certified collections first, Red Hat validated content second, and commu
 | `roles/automation_orchestrator_cve_remediation/` | Build and publish that workflow (generic) |
 | `playbooks/openshift_automation_portal.yml` | Install Ansible automation portal on OpenShift (operator, AAP OAuth application, catalog token) |
 | `roles/openshift_automation_portal/` | Install and connect Ansible automation portal (generic; independent of AO) |
+| `playbooks/openshift_automation_developer_hub.yml` | Red Hat Developer Hub with the Ansible plug-ins on OpenShift (AAP sign-in, plug-in token) |
+| `roles/openshift_automation_developer_hub/` | Deploy and connect Developer Hub with the Ansible plug-ins (generic) |
+| `roles/openshift_developer_hub_operator/` | Install or adopt the Red Hat Developer Hub operator (shared by the Developer Hub and portal roles) |
 | `playbooks/cve_remediation_assess.yml`, `cve_remediation_apply.yml` | Host playbooks the workflow launches (assess read-only; apply after approval) |
 | `configs/` | AAP configuration data by area (see `configs/README.md`) |
 | `playbooks/initialize_automation_platform.yml` | Initialize AAP (ansible-core only) and launch the configure job template |
@@ -65,7 +68,8 @@ rest of this repo, then launches it.
    **"Configuration as code | Apply Ansible Automation Platform configuration"** (your site values become its extra vars),
    then launches that job template, which creates every other object in `configs/common` and the selected areas.
 3. Afterwards, change the configuration in git and re-launch that job template. Run the Automation Orchestrator job
-   templates in the order listed in `configs/README.md`, and "Automation portal | Install on OpenShift" for the portal.
+   templates in the order listed in `configs/README.md`, "Automation portal | Install on OpenShift" for the portal, and "Developer Hub | Install with the Ansible plug-ins on
+   OpenShift" for Developer Hub.
 
 **Removing it again:** `ansible-playbook playbooks/cleanup_automation_platform.yml -e @/path/to/site.yml [--check]`
 deletes, by exact name from `configs/common` and the selected areas (never `platform_management`) and only in the site

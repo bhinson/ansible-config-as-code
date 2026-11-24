@@ -1,0 +1,90 @@
+---
+- name: Discover | Normalize survey-style inputs (comma-separated strings -> lists)
+  ansible.builtin.set_fact:
+    __developer_hub_catalog_organizations: >-
+      {{ (openshift_automation_developer_hub_catalog_organizations.split(',')
+          if openshift_automation_developer_hub_catalog_organizations is string
+          else openshift_automation_developer_hub_catalog_organizations) | map('trim') | select | list }}
+    __developer_hub_admin_users: >-
+      {{ (openshift_automation_developer_hub_admin_users.split(',') if openshift_automation_developer_hub_admin_users is string
+          else openshift_automation_developer_hub_admin_users) | map('trim') | select | list }}
+    __developer_hub_super_users: >-
+      {{ (openshift_automation_developer_hub_super_users.split(',') if openshift_automation_developer_hub_super_users is string
+          else openshift_automation_developer_hub_super_users) | map('trim') | select | list }}
+
+- name: Discover | Resolve the Ansible Automation Platform URL and token
+  ansible.builtin.set_fact:
+    __developer_hub_platform_url: >-
+      {{ ((openshift_automation_developer_hub_platform_url
+           if openshift_automation_developer_hub_platform_url | length > 0
+           else aap_hostname | default(''))
+          | regex_replace('^(?!https?://)(.+)$', 'https://\1')) | regex_replace('/+$', '') }}
+    __developer_hub_platform_token: >-
+      {{ openshift_automation_developer_hub_platform_token if openshift_automation_developer_hub_platform_token | length > 0
+         else ((aap_token.token if aap_token is mapping else aap_token) | default('')) }}
+  no_log: true
+
+- name: Discover | Set the private automation hub link
+  ansible.builtin.set_fact:
+    __developer_hub_automation_hub_url: >-
+      {{ '' if openshift_automation_developer_hub_automation_hub_url == 'none'
+         else (openshift_automation_developer_hub_automation_hub_url | default('', true) or __developer_hub_platform_url) }}
+
+- name: Discover | Check required inputs
+  ansible.builtin.assert:
+    that:
+      - __developer_hub_platform_url is match('https?://.+')
+      - __developer_hub_platform_token | length > 0
+      - __developer_hub_catalog_organizations | length > 0
+      - openshift_automation_developer_hub_catalog_sync_interval | int > 0
+    fail_msg: >-
+      Need the Ansible Automation Platform URL and a token (Red Hat Ansible Automation Platform credential, or
+      openshift_automation_developer_hub_platform_url / _platform_token), at least one catalog organization and a positive
+      sync interval.
+    quiet: true
+
+- name: Discover | Read the cluster ingress domain
+  kubernetes.core.k8s_info:
+    api_version: config.openshift.io/v1
+    kind: Ingress
+    name: cluster
+  register: __developer_hub_ingress_config
+
+# Custom host from the variable, else the host OpenShift generates for the operator's route backstage-<name>
+- name: Discover | Set the expected route hostname
+  ansible.builtin.set_fact:
+    __developer_hub_route_name: "backstage-{{ openshift_automation_developer_hub_name }}"
+    __developer_hub_route_host_custom: "{{ openshift_automation_developer_hub_route_host | default('', true) }}"
+    __developer_hub_route_host: >-
+      {{ openshift_automation_developer_hub_route_host | default('', true)
+         or ('backstage-' ~ openshift_automation_developer_hub_name ~ '-' ~ openshift_automation_developer_hub_namespace ~ '.'
+             ~ __developer_hub_ingress_config.resources[0].spec.domain) }}
+
+- name: Discover | Read the OpenShift ingress certificate authority
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: ConfigMap
+    namespace: openshift-config-managed
+    name: default-ingress-cert
+  register: __developer_hub_ingress_ca
+  when: openshift_automation_developer_hub_ca_certificate | length == 0
+
+- name: Discover | Set the certificate authority for Ansible Automation Platform
+  ansible.builtin.set_fact:
+    __developer_hub_ca: >-
+      {{ openshift_automation_developer_hub_ca_certificate
+         if openshift_automation_developer_hub_ca_certificate | length > 0
+         else __developer_hub_ingress_ca.resources[0].data['ca-bundle.crt'] }}
+
+- name: Discover | Create a temporary certificate authority file for API calls
+  ansible.builtin.tempfile:
+    state: file
+    suffix: .pem
+  register: __developer_hub_ca_file
+
+- name: Discover | Write the certificate authority file
+  ansible.builtin.copy:
+    content: "{{ __developer_hub_ca }}"
+    dest: "{{ __developer_hub_ca_file.path }}"
+    mode: "0600"
+...

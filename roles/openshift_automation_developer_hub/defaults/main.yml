@@ -1,0 +1,88 @@
+---
+# openshift_automation_developer_hub: Red Hat Developer Hub (RHDH) on OpenShift with the Ansible plug-ins for Red Hat
+# Developer Hub (AAP 2.7 docs, "Ansible plug-ins for Red Hat Developer Hub", OCI delivery), connected to an existing
+# Ansible Automation Platform (AAP):
+#   - RHDH operator through the shared role openshift_developer_hub_operator
+#   - AAP OAuth application (sign-in with AAP accounts) and an AAP API token (read/write) for the plug-ins
+#   - Secrets: environment variables, registry auth for the OCI plug-ins, certificate authority (CA) bundle
+#   - app-config and dynamic plug-in ConfigMaps, Backstage custom resource (CR) with the Ansible dev tools sidecar
+# Everything is discovered from the cluster or the job's credentials when left empty.
+
+# --- operator (shared role; its openshift_developer_hub_operator_* variables apply) ---
+openshift_automation_developer_hub_manage_operator: true
+
+# --- instance ---
+openshift_automation_developer_hub_namespace: developer-hub
+# Backstage CR name; the operator names the Deployment and Route backstage-<name>
+openshift_automation_developer_hub_name: developer-hub
+# Route hostname; empty = the default OpenShift generates: backstage-<name>-<namespace>.<apps domain>
+openshift_automation_developer_hub_route_host: ""
+# PostgreSQL deployed and managed by the RHDH operator (false: see the RHDH docs for an external database and pass the
+# Backstage spec through openshift_automation_developer_hub_backstage_spec_overrides)
+openshift_automation_developer_hub_local_database: true
+
+# Developer Lightspeed preset (RHDH 1.10 "Pre-configured settings for common use cases"): enabled by default by the
+# operator and needs an external LLM provider (OpenAI-compatible API) to be useful; false adds spec.flavours
+# [{name: lightspeed, enabled: false}], which also removes its sidecar and plug-ins.
+openshift_automation_developer_hub_lightspeed_enabled: false
+
+# --- AAP ---
+# Empty = aap_hostname (Red Hat Ansible Automation Platform credential)
+openshift_automation_developer_hub_platform_url: ""
+# Token this job uses for the AAP gateway API (OAuth application, plug-in token). Empty = aap_token (same credential).
+openshift_automation_developer_hub_platform_token: ""
+openshift_automation_developer_hub_oauth_app_name: Red Hat Developer Hub
+openshift_automation_developer_hub_oauth_app_organization: Default
+# AAP returns the OAuth client secret only at creation; recreate the application if the Secret lacks it
+openshift_automation_developer_hub_recreate_oauth_app: false
+# Token the Ansible plug-ins use against AAP (docs: personal access token with read and write scope). Empty = keep the
+# stored token if it still works, else create one for the user of openshift_automation_developer_hub_platform_token.
+openshift_automation_developer_hub_plugin_token: ""
+openshift_automation_developer_hub_rotate_plugin_token: false
+# AAP organizations whose users and teams sync into the catalog (list or comma-separated; the first one is used)
+openshift_automation_developer_hub_catalog_organizations: [Default]
+openshift_automation_developer_hub_catalog_sync_interval: 60
+
+# --- Ansible plug-ins (OCI delivery) ---
+openshift_automation_developer_hub_plugins_image: registry.redhat.io/ansible-automation-platform/automation-portal
+# Image tag for your release (docs example: 2.2)
+openshift_automation_developer_hub_plugins_tag: "2.2"
+openshift_automation_developer_hub_devtools_image: registry.redhat.io/ansible-automation-platform-27/ansible-dev-tools-rhel9:latest
+# Ansible dev tools sidecar resources (docs defaults)
+openshift_automation_developer_hub_devtools_resources:
+  requests: {cpu: "1", memory: 1Gi}
+  limits: {cpu: 2500m, memory: 2.5Gi}
+# Software templates for creating playbook and collection projects
+openshift_automation_developer_hub_software_templates_url: https://github.com/ansible/ansible-rhdh-templates/blob/main/all.yaml
+# Private automation hub link in the plug-ins; empty = the AAP URL (the hub is served by the AAP gateway); "none" = no link
+openshift_automation_developer_hub_automation_hub_url: ""
+# OpenShift Dev Spaces dashboard link (optional, separate product)
+openshift_automation_developer_hub_dev_spaces_url: ""
+
+# --- permissions (role-based access control (RBAC) plugin) ---
+# RBAC administrators and super users: user:default/<AAP username> or group:default/<AAP team> (list or comma-separated)
+openshift_automation_developer_hub_admin_users: []
+openshift_automation_developer_hub_super_users: []
+
+# --- registry credentials for the OCI plug-ins (Secret dynamic-plugins-registry-auth; the name is fixed) ---
+openshift_automation_developer_hub_registry: registry.redhat.io
+# Empty = copy the registry's entry from the cluster global pull secret (openshift-config/pull-secret)
+openshift_automation_developer_hub_registry_username: ""
+openshift_automation_developer_hub_registry_password: ""
+
+# --- TLS ---
+# Verify TLS certificates on this job's calls to the cluster API and AAP
+openshift_automation_developer_hub_validate_certs: true
+# The plug-ins and sign-in verify the AAP certificate (checkSSL); prefer the CA bundle below over false
+openshift_automation_developer_hub_check_ssl: true
+# PEM CA trusted in addition to the cluster's trusted bundle; empty = OpenShift ingress CA (default-ingress-cert)
+openshift_automation_developer_hub_ca_certificate: ""
+
+# --- anything else, recursively merged over the generated configuration ---
+openshift_automation_developer_hub_app_config_overrides: {}
+openshift_automation_developer_hub_backstage_spec_overrides: {}
+
+# --- waits ---
+openshift_automation_developer_hub_wait_retries: 60
+openshift_automation_developer_hub_wait_delay: 20
+...

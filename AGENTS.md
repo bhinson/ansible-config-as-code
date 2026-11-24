@@ -31,6 +31,11 @@ are linked, never copied, so they stay current.
   resource, portal sign-in or catalog synchronization failures: follow
   [skills/automation-portal-install-openshift/SKILL.md](skills/automation-portal-install-openshift/SKILL.md).
 
+## Red Hat Developer Hub (only when working on it)
+- Developer Hub with the Ansible plug-ins (`roles/openshift_automation_developer_hub`), the shared RHDH operator role
+  (`roles/openshift_developer_hub_operator`), sign-in, plug-in or catalog failures: follow
+  [skills/automation-developer-hub-install-openshift/SKILL.md](skills/automation-developer-hub-install-openshift/SKILL.md).
+
 ## Always
 - **Never** write self-referential Jinja under task `vars:` (`key: "{{ key | default([]) }}"`); it causes recursive
   template loops. Follow upstream [ansible-jinja-no-self-ref](https://github.com/redhat-cop/aap_configuration_extended/blob/devel/skills/ansible-jinja-no-self-ref/SKILL.md) and run the

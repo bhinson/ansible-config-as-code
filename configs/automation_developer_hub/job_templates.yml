@@ -1,0 +1,151 @@
+---
+# Area automation_developer_hub: Red Hat Developer Hub with the Ansible plug-ins on OpenShift, signed in and connected to
+# Ansible Automation Platform. Independent of the other areas; shares the Red Hat Developer Hub operator with
+# automation_portal (role openshift_developer_hub_operator).
+controller_templates__automation_developer_hub:
+  - name: Developer Hub | Install with the Ansible plug-ins on OpenShift
+    description: >-
+      Install or adopt the Red Hat Developer Hub operator and deploy Developer Hub with the Ansible plug-ins (OCI delivery),
+      Ansible Automation Platform sign-in and the Ansible dev tools sidecar (role openshift_automation_developer_hub)
+    organization: "{{ site_organization }}"
+    project: Configuration as code - ansible-config-as-code
+    playbook: playbooks/openshift_automation_developer_hub.yml
+    inventory: Configuration as code - localhost
+    execution_environment: "{{ site_execution_environment }}"
+    credentials:
+      - Configuration as code - OpenShift API
+      - Configuration as code - Ansible Automation Platform
+    survey_enabled: true
+    survey_spec:
+      name: Red Hat Developer Hub with the Ansible plug-ins
+      description: >-
+        Inputs for openshift_automation_developer_hub (the Ansible Automation Platform URL, registry credentials and
+        certificate authority are discovered when empty)
+      spec:
+        - question_name: Namespace
+          question_description: Namespace for Developer Hub and its database
+          variable: openshift_automation_developer_hub_namespace
+          type: text
+          required: true
+          default: developer-hub
+        - question_name: Developer Hub operator channel
+          question_description: fast = every update; fast-<version> (for example fast-1.10) = z-stream updates only
+          variable: openshift_developer_hub_operator_channel
+          type: text
+          required: true
+          default: "{{ site_developer_hub_operator_channel }}"
+        - question_name: Developer Hub operator install plan approval
+          variable: openshift_developer_hub_operator_approval
+          type: multiplechoice
+          choices: [Automatic, Manual]
+          required: true
+          default: Automatic
+        - question_name: Route hostname
+          question_description: >-
+            Empty = the default, backstage-<name>-<namespace>.<apps domain>; set for example developer-hub.<apps domain>
+          variable: openshift_automation_developer_hub_route_host
+          type: text
+          required: false
+          default: ""
+        - question_name: Catalog organization
+          question_description: Ansible Automation Platform organization whose users and teams sync into Developer Hub
+          variable: openshift_automation_developer_hub_catalog_organizations
+          type: text
+          required: true
+          default: "{{ site_organization }}"
+        - question_name: Ansible plug-ins image tag
+          question_description: Tag of registry.redhat.io/ansible-automation-platform/automation-portal for your release
+          variable: openshift_automation_developer_hub_plugins_tag
+          type: text
+          required: true
+          default: "2.2"
+        - question_name: Enable Developer Lightspeed
+          question_description: >-
+            Red Hat Developer Hub AI chat preset (needs an OpenAI-compatible LLM provider configured separately); false
+            removes its sidecar and plug-ins
+          variable: openshift_automation_developer_hub_lightspeed_enabled
+          type: multiplechoice
+          choices: ["false", "true"]
+          required: true
+          default: "false"
+        - question_name: Private automation hub link
+          question_description: Empty = the Ansible Automation Platform URL (the hub is served by the gateway); none = no link
+          variable: openshift_automation_developer_hub_automation_hub_url
+          type: text
+          required: false
+          default: ""
+        - question_name: OpenShift Dev Spaces dashboard URL
+          question_description: Optional; empty = the plug-ins link to the Ansible development tools page
+          variable: openshift_automation_developer_hub_dev_spaces_url
+          type: text
+          required: false
+          default: ""
+        - question_name: Administrators
+          question_description: >-
+            Comma-separated user:default/<Ansible Automation Platform username> or group:default/<team> (RBAC admin users)
+          variable: openshift_automation_developer_hub_admin_users
+          type: text
+          required: false
+          default: "{{ site_automation_developer_hub_admin_users }}"
+        - question_name: Super users
+          question_description: Comma-separated; can create projects from the Ansible software templates
+          variable: openshift_automation_developer_hub_super_users
+          type: text
+          required: false
+          default: "{{ site_automation_developer_hub_super_users }}"
+        - question_name: OAuth application organization
+          variable: openshift_automation_developer_hub_oauth_app_organization
+          type: text
+          required: true
+          default: "{{ site_organization }}"
+        - question_name: Recreate the OAuth application
+          question_description: Only if the application exists but the Developer Hub Secret lacks its client secret
+          variable: openshift_automation_developer_hub_recreate_oauth_app
+          type: multiplechoice
+          choices: ["false", "true"]
+          required: true
+          default: "false"
+        - question_name: Plug-in token
+          question_description: >-
+            Ansible Automation Platform token (read and write) for the plug-ins; empty = keep the stored token, or create
+            one for this job's Ansible Automation Platform user
+          variable: openshift_automation_developer_hub_plugin_token
+          type: password
+          required: false
+        - question_name: Create a new plug-in token
+          variable: openshift_automation_developer_hub_rotate_plugin_token
+          type: multiplechoice
+          choices: ["false", "true"]
+          required: true
+          default: "false"
+        - question_name: Registry username
+          question_description: For registry.redhat.io plug-in images; empty = copy from the cluster global pull secret
+          variable: openshift_automation_developer_hub_registry_username
+          type: text
+          required: false
+          default: ""
+        - question_name: Registry password
+          variable: openshift_automation_developer_hub_registry_password
+          type: password
+          required: false
+        - question_name: Verify TLS certificates from this job
+          question_description: The job's calls to the cluster API and Ansible Automation Platform
+          variable: openshift_automation_developer_hub_validate_certs
+          type: multiplechoice
+          choices: ["true", "false"]
+          required: true
+          default: "true"
+        - question_name: Developer Hub verifies the Ansible Automation Platform certificate
+          question_description: false sets checkSSL false; prefer supplying the certificate authority bundle below
+          variable: openshift_automation_developer_hub_check_ssl
+          type: multiplechoice
+          choices: ["true", "false"]
+          required: true
+          default: "true"
+        - question_name: Certificate authority bundle (PEM)
+          question_description: CA for Ansible Automation Platform; empty = OpenShift ingress certificate authority
+          variable: openshift_automation_developer_hub_ca_certificate
+          type: textarea
+          required: false
+          default: ""
+...

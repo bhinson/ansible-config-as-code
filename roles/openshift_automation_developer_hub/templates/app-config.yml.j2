@@ -1,0 +1,71 @@
+---
+# Developer Hub app-config. Secrets are ${VARIABLES} from the <name>-secrets Secret. The RHDH operator sets app.baseUrl,
+# backend.baseUrl and backend.cors.origin from the route in its default app-config (RHDH 1.10 "Default base URLs").
+# Sources: AAP 2.7 extend guide ("Configure the Ansible plug-ins", "Configure role-based access control", optional
+# integrations); sign-in and catalog provider as the automation portal operator generates them.
+ansible:
+  creatorService:
+    baseUrl: 127.0.0.1
+    port: "8000"
+  rhaap:
+    baseUrl: ${AAP_HOST_URL}
+    token: ${AAP_TOKEN}
+    checkSSL: {{ openshift_automation_developer_hub_check_ssl | bool | to_json }}
+{% if __developer_hub_automation_hub_url | length > 0 %}
+  automationHub:
+    baseUrl: {{ __developer_hub_automation_hub_url | to_json }}
+{% endif %}
+{% if openshift_automation_developer_hub_dev_spaces_url | length > 0 %}
+  devSpaces:
+    baseUrl: {{ openshift_automation_developer_hub_dev_spaces_url | to_json }}
+{% endif %}
+auth:
+  environment: production
+  providers:
+    rhaap:
+      production:
+        host: ${AAP_HOST_URL}
+        clientId: ${OAUTH_CLIENT_ID}
+        clientSecret: ${OAUTH_CLIENT_SECRET}
+        checkSSL: {{ openshift_automation_developer_hub_check_ssl | bool | to_json }}
+        signIn:
+          resolvers:
+            - resolver: allowNewAAPUserSignIn
+  signInPage: rhaap
+signInPage: rhaap
+enableExperimentalRedirectFlow: true
+backend:
+  reading:
+    allow:
+      - host: github.com
+      - host: raw.githubusercontent.com
+catalog:
+  locations:
+    - type: url
+      target: {{ openshift_automation_developer_hub_software_templates_url | to_json }}
+      rules:
+        - allow: [Template]
+  providers:
+    rhaap:
+      production:
+        orgs: {{ __developer_hub_catalog_organizations[0] | to_json }}
+        sync:
+          orgsUsersTeams:
+            schedule:
+              frequency: {minutes: {{ openshift_automation_developer_hub_catalog_sync_interval | int }}}
+              timeout: {seconds: 30}
+          jobTemplates:
+            enabled: false
+permission:
+  enabled: true
+  rbac:
+    pluginsWithPermission: [catalog, scaffolder, permission]
+{% if __developer_hub_admin_users | length > 0 or __developer_hub_super_users | length > 0 %}
+    admin:
+{% if __developer_hub_admin_users | length > 0 %}
+      users: [{% for __user in __developer_hub_admin_users %}{"name": {{ __user | to_json }}}{{ ', ' if not loop.last }}{% endfor %}]
+{% endif %}
+{% if __developer_hub_super_users | length > 0 %}
+      superUsers: [{% for __user in __developer_hub_super_users %}{"name": {{ __user | to_json }}}{{ ', ' if not loop.last }}{% endfor %}]
+{% endif %}
+{% endif %}

@@ -1,0 +1,112 @@
+---
+# Uses redhat.openshift (applies objects) and kubernetes.core (lookups), both Red Hat certified. Authentication comes
+# from K8S_AUTH_* environment variables. Output: fact openshift_developer_hub_operator_result
+# ({namespace, subscription, cluster_service_version, adopted}).
+
+- name: Main | Install or adopt the Red Hat Developer Hub operator
+  module_defaults:
+    group/kubernetes.core.k8s:
+      validate_certs: "{{ openshift_developer_hub_operator_validate_certs | bool }}"
+    redhat.openshift.k8s:
+      validate_certs: "{{ openshift_developer_hub_operator_validate_certs | bool }}"
+  block:
+    - name: Main | Find existing Subscriptions for the package (any namespace)
+      kubernetes.core.k8s_info:
+        api_version: operators.coreos.com/v1alpha1
+        kind: Subscription
+      register: __developer_hub_operator_subscriptions
+
+    - name: Main | Pick the existing Subscription
+      ansible.builtin.set_fact:
+        __developer_hub_operator_existing: >-
+          {{ __developer_hub_operator_subscriptions.resources
+             | selectattr('spec.name', 'equalto', openshift_developer_hub_operator_package) | first | default({}) }}
+
+    - name: Main | Adopt the existing Subscription (channel, approval, source from this role)
+      redhat.openshift.k8s:  # noqa: fqcn[canonical]
+        state: patched
+        api_version: operators.coreos.com/v1alpha1
+        kind: Subscription
+        name: "{{ __developer_hub_operator_existing.metadata.name }}"
+        namespace: "{{ __developer_hub_operator_existing.metadata.namespace }}"
+        definition:
+          spec:
+            channel: "{{ openshift_developer_hub_operator_channel }}"
+            installPlanApproval: "{{ openshift_developer_hub_operator_approval }}"
+            source: "{{ openshift_developer_hub_operator_source }}"
+            sourceNamespace: openshift-marketplace
+      when: __developer_hub_operator_existing | length > 0
+
+    - name: Main | Install the operator
+      when: __developer_hub_operator_existing | length == 0
+      block:
+        - name: Main | Create the operator namespace
+          redhat.openshift.k8s:  # noqa: fqcn[canonical]
+            state: present
+            definition:
+              apiVersion: v1
+              kind: Namespace
+              metadata:
+                name: "{{ openshift_developer_hub_operator_namespace }}"
+
+        # A namespace must have exactly one OperatorGroup; keep one that already exists
+        - name: Main | Look for an OperatorGroup in the namespace
+          kubernetes.core.k8s_info:
+            api_version: operators.coreos.com/v1
+            kind: OperatorGroup
+            namespace: "{{ openshift_developer_hub_operator_namespace }}"
+          register: __developer_hub_operator_groups
+
+        - name: Main | Create the OperatorGroup and Subscription
+          redhat.openshift.k8s:  # noqa: fqcn[canonical]
+            state: present
+            apply: true
+            template: operator.yml.j2
+
+    - name: Main | Keep the Subscription location
+      ansible.builtin.set_fact:
+        __developer_hub_operator_subscription_namespace: >-
+          {{ __developer_hub_operator_existing.metadata.namespace | default(openshift_developer_hub_operator_namespace) }}
+        __developer_hub_operator_subscription_name: >-
+          {{ __developer_hub_operator_existing.metadata.name | default(openshift_developer_hub_operator_subscription_name) }}
+
+    - name: Main | Wait for the Subscription to report an installed ClusterServiceVersion
+      kubernetes.core.k8s_info:
+        api_version: operators.coreos.com/v1alpha1
+        kind: Subscription
+        name: "{{ __developer_hub_operator_subscription_name }}"
+        namespace: "{{ __developer_hub_operator_subscription_namespace }}"
+      register: __developer_hub_operator_subscription
+      until: (__developer_hub_operator_subscription.resources[0].status.installedCSV | default('')) | length > 0
+      retries: "{{ openshift_developer_hub_operator_wait_retries }}"
+      delay: "{{ openshift_developer_hub_operator_wait_delay }}"
+
+    - name: Main | Wait for the ClusterServiceVersion to succeed
+      kubernetes.core.k8s_info:
+        api_version: operators.coreos.com/v1alpha1
+        kind: ClusterServiceVersion
+        name: "{{ __developer_hub_operator_subscription.resources[0].status.installedCSV }}"
+        namespace: "{{ __developer_hub_operator_subscription_namespace }}"
+      register: __developer_hub_operator_csv
+      until: (__developer_hub_operator_csv.resources[0].status.phase | default('')) == 'Succeeded'
+      retries: "{{ openshift_developer_hub_operator_wait_retries }}"
+      delay: "{{ openshift_developer_hub_operator_wait_delay }}"
+
+    - name: Main | Wait for the Backstage custom resource definition
+      kubernetes.core.k8s_info:
+        api_version: apiextensions.k8s.io/v1
+        kind: CustomResourceDefinition
+        name: backstages.rhdh.redhat.com
+      register: __developer_hub_operator_crd
+      until: __developer_hub_operator_crd.resources | length > 0
+      retries: "{{ openshift_developer_hub_operator_wait_retries }}"
+      delay: "{{ openshift_developer_hub_operator_wait_delay }}"
+
+    - name: Main | Report
+      ansible.builtin.set_fact:
+        openshift_developer_hub_operator_result:
+          namespace: "{{ __developer_hub_operator_subscription_namespace }}"
+          subscription: "{{ __developer_hub_operator_subscription_name }}"
+          cluster_service_version: "{{ __developer_hub_operator_subscription.resources[0].status.installedCSV }}"
+          adopted: "{{ __developer_hub_operator_existing | length > 0 }}"
+...

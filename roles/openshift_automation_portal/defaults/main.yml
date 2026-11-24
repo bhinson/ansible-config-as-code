@@ -14,6 +14,10 @@ openshift_automation_portal_operator_channel: fast
 openshift_automation_portal_operator_approval: Automatic
 openshift_automation_portal_operator_source: redhat-operators
 
+# Install or adopt the Red Hat Developer Hub operator with the shared role openshift_developer_hub_operator (its
+# openshift_developer_hub_operator_* variables apply); false = leave it to the automation portal operator
+openshift_automation_portal_manage_developer_hub_operator: true
+
 # --- instance ---
 openshift_automation_portal_namespace: automation-portal
 openshift_automation_portal_name: portal

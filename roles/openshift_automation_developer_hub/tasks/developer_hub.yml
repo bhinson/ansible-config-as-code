@@ -1,0 +1,138 @@
+---
+- name: Developer Hub | Render the configuration
+  ansible.builtin.set_fact:
+    __developer_hub_app_config: >-
+      {{ lookup('ansible.builtin.template', 'app-config.yml.j2') | from_yaml
+         | combine(openshift_automation_developer_hub_app_config_overrides | default({}, true), recursive=true) }}
+    __developer_hub_dynamic_plugins: "{{ lookup('ansible.builtin.template', 'dynamic-plugins.yml.j2') | from_yaml }}"
+
+# Pod annotation with a checksum of the CA bundle and both ConfigMaps: any change rolls the pod (the CA bundle is mounted
+# through the deployment patch, which the operator doesn't watch, and Node.js reads it only at start).
+- name: Developer Hub | Compute the configuration checksum
+  ansible.builtin.set_fact:
+    __developer_hub_config_checksum: >-
+      {{ (__developer_hub_ca_bundle ~ (__developer_hub_app_config | to_json) ~ (__developer_hub_dynamic_plugins | to_json)) | hash('sha256') }}
+
+- name: Developer Hub | Render the Backstage spec
+  ansible.builtin.set_fact:
+    __developer_hub_backstage_spec: >-
+      {{ lookup('ansible.builtin.template', 'backstage.yml.j2') | from_yaml
+         | combine(openshift_automation_developer_hub_backstage_spec_overrides | default({}, true), recursive=true) }}
+
+# One data entry per app-config ConfigMap (RHDH 1.10 warning on merge order). The ext-config-sync label makes the RHDH
+# operator restart Developer Hub when these change (the automation portal operator labels its ConfigMaps the same way).
+- name: Developer Hub | Apply the app-config and dynamic plug-in ConfigMaps
+  redhat.openshift.k8s:  # noqa: fqcn[canonical]
+    state: present
+    apply: true
+    definition:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: "{{ openshift_automation_developer_hub_name }}-{{ __developer_hub_config_item.suffix }}"
+        namespace: "{{ openshift_automation_developer_hub_namespace }}"
+        labels:
+          rhdh.redhat.com/ext-config-sync: "true"
+      data: "{{ {__developer_hub_config_item.key: __developer_hub_config_item.content | to_nice_yaml(indent=2)} }}"
+  loop:
+    - {suffix: app-config, key: app-config.yaml, content: "{{ __developer_hub_app_config }}"}
+    - {suffix: dynamic-plugins, key: dynamic-plugins.yaml, content: "{{ __developer_hub_dynamic_plugins }}"}
+  loop_control:
+    loop_var: __developer_hub_config_item
+    label: "{{ __developer_hub_config_item.suffix }}"
+
+- name: Developer Hub | Apply the Backstage custom resource
+  redhat.openshift.k8s:  # noqa: fqcn[canonical]
+    state: present
+    apply: true
+    definition:
+      apiVersion: rhdh.redhat.com/v1alpha5
+      kind: Backstage
+      metadata:
+        name: "{{ openshift_automation_developer_hub_name }}"
+        namespace: "{{ openshift_automation_developer_hub_namespace }}"
+      spec: "{{ __developer_hub_backstage_spec }}"
+
+- name: Developer Hub | Wait for the deployment to finish rolling out
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: "backstage-{{ openshift_automation_developer_hub_name }}"
+    namespace: "{{ openshift_automation_developer_hub_namespace }}"
+  register: __developer_hub_deployment
+  until: >-
+    __developer_hub_deployment.resources | length > 0 and
+    (__developer_hub_deployment.resources[0].status.observedGeneration | default(0)) >= __developer_hub_deployment.resources[0].metadata.generation and
+    (__developer_hub_deployment.resources[0].status.updatedReplicas | default(0)) == __developer_hub_deployment.resources[0].spec.replicas and
+    (__developer_hub_deployment.resources[0].status.availableReplicas | default(0)) == __developer_hub_deployment.resources[0].spec.replicas and
+    (__developer_hub_deployment.resources[0].status.replicas | default(0)) == __developer_hub_deployment.resources[0].spec.replicas
+  retries: "{{ openshift_automation_developer_hub_wait_retries }}"
+  delay: "{{ openshift_automation_developer_hub_wait_delay }}"
+
+# OpenShift generates a route host only when the route is created; removing a custom host later leaves the old one. To
+# return to the default, delete the route; the RHDH operator doesn't watch its routes, so an annotation change on the
+# Backstage custom resource makes it recreate the route.
+- name: Developer Hub | Read the current route
+  kubernetes.core.k8s_info:
+    api_version: route.openshift.io/v1
+    kind: Route
+    namespace: "{{ openshift_automation_developer_hub_namespace }}"
+    name: "{{ __developer_hub_route_name }}"
+  register: __developer_hub_current_route
+
+- name: Developer Hub | Delete the route so it is recreated with the default hostname
+  redhat.openshift.k8s:  # noqa: fqcn[canonical]
+    state: absent
+    api_version: route.openshift.io/v1
+    kind: Route
+    namespace: "{{ openshift_automation_developer_hub_namespace }}"
+    name: "{{ __developer_hub_route_name }}"
+  when:
+    - __developer_hub_route_host_custom | length == 0
+    - __developer_hub_current_route.resources | length > 0
+    - __developer_hub_current_route.resources[0].spec.host != __developer_hub_route_host
+  register: __developer_hub_route_delete
+
+- name: Developer Hub | Make the Red Hat Developer Hub operator recreate the route
+  redhat.openshift.k8s:  # noqa: fqcn[canonical]
+    state: patched
+    api_version: rhdh.redhat.com/v1alpha5
+    kind: Backstage
+    namespace: "{{ openshift_automation_developer_hub_namespace }}"
+    name: "{{ openshift_automation_developer_hub_name }}"
+    definition:
+      metadata:
+        annotations:
+          developerhub.ansible-config-as-code/route-reset: "{{ now(utc=true).isoformat() }}"
+  when: __developer_hub_route_delete is changed  # noqa: no-handler (the wait below needs the new route)
+
+- name: Developer Hub | Wait for the route to use the expected hostname
+  kubernetes.core.k8s_info:
+    api_version: route.openshift.io/v1
+    kind: Route
+    namespace: "{{ openshift_automation_developer_hub_namespace }}"
+    name: "{{ __developer_hub_route_name }}"
+  register: __developer_hub_route
+  until: (__developer_hub_route.resources[0].spec.host | default('')) == __developer_hub_route_host
+  retries: "{{ openshift_automation_developer_hub_wait_retries }}"
+  delay: "{{ openshift_automation_developer_hub_wait_delay }}"
+
+- name: Developer Hub | Keep the URL
+  ansible.builtin.set_fact:
+    __developer_hub_url: "https://{{ __developer_hub_route_host }}"
+
+# AAP sign-in fails until the redirect URI matches the real URL
+- name: Developer Hub | Point the OAuth application redirect URI at Developer Hub
+  ansible.builtin.uri:
+    url: "{{ __developer_hub_platform_url }}/api/gateway/v1/applications/{{ __developer_hub_app_id }}/"
+    method: PATCH
+    headers:
+      Authorization: "Bearer {{ __developer_hub_platform_token }}"
+    body_format: json
+    body:
+      redirect_uris: "{{ __developer_hub_url }}/api/auth/rhaap/handler/frame"
+    ca_path: "{{ __developer_hub_ca_file.path }}"
+    validate_certs: "{{ openshift_automation_developer_hub_validate_certs | bool }}"
+  when: __developer_hub_app_redirect_uris | trim != __developer_hub_url ~ '/api/auth/rhaap/handler/frame'
+  changed_when: true
+...

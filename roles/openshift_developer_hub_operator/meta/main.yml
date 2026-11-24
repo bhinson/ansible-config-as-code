@@ -1,0 +1,11 @@
+---
+galaxy_info:
+  author: ansible-config-as-code contributors
+  description: Install or adopt the Red Hat Developer Hub operator (shared by the Developer Hub and automation portal roles)
+  license: GPL-3.0-or-later
+  min_ansible_version: "2.16"
+  platforms:
+    - name: GenericLinux
+      versions: [all]
+dependencies: []
+...

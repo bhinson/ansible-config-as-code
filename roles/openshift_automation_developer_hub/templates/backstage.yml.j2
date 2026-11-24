@@ -1,0 +1,74 @@
+---
+# Backstage spec (RHDH 1.10 "Use the Red Hat Developer Hub Operator to run Developer Hub with your custom
+# configuration"; AAP 2.7 "Add the Ansible Developer Tools sidecar container"). The CA bundle mounts follow what the
+# automation portal operator generates. dynamic-plugins-registry-auth is picked up by the operator by its fixed name.
+application:
+  appConfig:
+    mountPath: /opt/app-root/src
+    configMaps:
+      - name: {{ openshift_automation_developer_hub_name }}-app-config
+  dynamicPluginsConfigMapName: {{ openshift_automation_developer_hub_name }}-dynamic-plugins
+  extraEnvs:
+    secrets:
+      - name: {{ openshift_automation_developer_hub_name }}-secrets
+  route:
+    enabled: true
+{% if __developer_hub_route_host_custom | length > 0 %}
+    host: {{ __developer_hub_route_host_custom }}
+{% endif %}
+flavours:
+  - name: lightspeed
+    enabled: {{ openshift_automation_developer_hub_lightspeed_enabled | bool | to_json }}
+database:
+  enableLocalDb: {{ openshift_automation_developer_hub_local_database | bool | to_json }}
+deployment:
+  patch:
+    spec:
+      template:
+        metadata:
+          annotations:
+            developerhub.ansible-config-as-code/config-checksum: {{ __developer_hub_config_checksum }}
+        spec:
+          containers:
+            - name: backstage-backend
+              env:
+                - name: NODE_EXTRA_CA_CERTS
+                  value: /etc/pki/tls/custom-ca/ca-bundle.crt
+              volumeMounts:
+                - name: custom-ca-bundle
+                  mountPath: /etc/pki/tls/custom-ca
+                  readOnly: true
+            - name: ansible-devtools-server
+              image: {{ openshift_automation_developer_hub_devtools_image }}
+              imagePullPolicy: Always
+              command: [adt, server]
+              ports:
+                - containerPort: 8000
+                  protocol: TCP
+              env:
+                - name: SSL_CERT_FILE
+                  value: /etc/pki/tls/custom-ca/ca-bundle.crt
+                - name: REQUESTS_CA_BUNDLE
+                  value: /etc/pki/tls/custom-ca/ca-bundle.crt
+              resources: {{ openshift_automation_developer_hub_devtools_resources | to_json }}
+              volumeMounts:
+                - name: custom-ca-bundle
+                  mountPath: /etc/pki/tls/custom-ca
+                  readOnly: true
+          initContainers:
+            - name: install-dynamic-plugins
+              env:
+                - name: NODE_EXTRA_CA_CERTS
+                  value: /etc/pki/tls/custom-ca/ca-bundle.crt
+                - name: SSL_CERT_FILE
+                  value: /etc/pki/tls/custom-ca/ca-bundle.crt
+                - name: REQUESTS_CA_BUNDLE
+                  value: /etc/pki/tls/custom-ca/ca-bundle.crt
+              volumeMounts:
+                - name: custom-ca-bundle
+                  mountPath: /etc/pki/tls/custom-ca
+                  readOnly: true
+          volumes:
+            - name: custom-ca-bundle
+              configMap:
+                name: {{ openshift_automation_developer_hub_name }}-ca-bundle

@@ -10,9 +10,10 @@ AAP objects as data for `infra.aap_configuration.dispatch`, split into **areas**
 | `automation_orchestrator_llm_integration/` | if selected | job template "Automation Orchestrator \| Configure LLM provider integration" |
 | `cve_remediation/` | if selected | inventory "CVE remediation - sample hosts", job templates "CVE remediation \| Assess hosts" / "\| Apply fix" and "Automation Orchestrator \| Configure CVE remediation workflow" |
 | `automation_portal/` | if selected | job template "Automation portal \| Install on OpenShift" |
+| `automation_developer_hub/` | if selected | job template "Developer Hub \| Install with the Ansible plug-ins on OpenShift" |
 | `platform_management/` | opt-in | Galaxy credentials for the private automation hub mirrors and console.redhat.com, the organizations' Galaxy credential order, and the scheduled job "Automation hub \| Sync collection repositories" |
 
-`site_configuration_areas` selects the areas (default: the five use-case areas). Each area defines its objects under
+`site_configuration_areas` selects the areas (default: the six use-case areas). Each area defines its objects under
 `<dispatch variable>__<area>` (for example `controller_templates__cve_remediation`); `common/aggregate.yml` merges
 whatever was loaded into the names the dispatch role reads, and `playbooks/tasks/load_configuration.yml` does the
 loading for the configure, initialize and cleanup playbooks. Reference objects by **name**, never by ID.
@@ -20,7 +21,9 @@ loading for the configure, initialize and cleanup playbooks. Reference objects b
 Dependencies between areas: `cve_remediation` needs an Automation Orchestrator (AO) that already has an AAP integration
 and an LLM provider integration (from the integration areas or set up by hand). AO itself can run anywhere: set
 `site_cve_remediation_workflow_credentials: []` and give the AO URL, admin password and certificate authority (CA) in the
-survey of "Configure CVE remediation workflow"; no OpenShift access is needed then. `automation_portal` is independent of AO:
+survey of "Configure CVE remediation workflow"; no OpenShift access is needed then. `automation_developer_hub` is independent too; it and
+`automation_portal` share the Red Hat Developer Hub operator (role `openshift_developer_hub_operator`, which adopts an
+existing install). `automation_portal` is independent of AO:
 it needs only an AAP for the portal to connect to (this job's AAP credential). `platform_management` changes AAP
 itself, needs an AAP administrator token, and is never removed by the cleanup playbook (it adopts existing objects).
 
@@ -36,7 +39,7 @@ ansible-playbook playbooks/initialize_automation_platform.yml -e @/path/to/site.
 
 | Setting | Example | Customize to |
 |---|---|---|
-| `site_configuration_areas` | the five use-case areas | the areas you want; add `platform_management` to manage AAP itself |
+| `site_configuration_areas` | the six use-case areas | the areas you want; add `platform_management` to manage AAP itself |
 | `site_organization` | `Default` | AAP organization that owns the objects |
 | `site_project_scm_url` / `site_project_scm_branch` | this repo / `main` | your fork, if you change the code |
 | `site_automation_platform_validate_certs` | `true` | `false` only if jobs can't verify the AAP gateway certificate |
@@ -51,6 +54,8 @@ ansible-playbook playbooks/initialize_automation_platform.yml -e @/path/to/site.
 | `site_automation_portal_job_template_labels` | `""` | labels a job template needs to appear in the portal (automation_portal) |
 | `site_automation_portal_admin_users` | `""` (operator default) | portal administrators, `user:default/<AAP username>` (automation_portal) |
 | `site_automation_portal_collections_enabled` / `_collection_repositories` | `"false"` / `""` | show the private automation hub's collections in the portal, and which hub repositories (automation_portal) |
+| `site_developer_hub_operator_channel` | `fast` | Red Hat Developer Hub operator channel (`fast-<version>` = z-stream only) (automation_developer_hub) |
+| `site_automation_developer_hub_admin_users` / `_super_users` | `""` | Developer Hub RBAC administrators / super users, `user:default/<AAP username>` (automation_developer_hub) |
 | `site_private_automation_hub_url` | `https://aap.example.com` | your private automation hub (platform_management) |
 | `site_galaxy_credential_organizations` | `[{name: Default}]` | organizations whose Galaxy credential order is managed (platform_management) |
 | `site_galaxy_credentials` | private hub ×4, console.redhat.com ×2, Ansible Galaxy | the ordered list; private hub only is fastest once the mirrors hold everything (platform_management) |
@@ -74,10 +79,11 @@ tokens) and `vaulted_red_hat_automation_hub_token` (console.redhat.com offline t
 | Automation Orchestrator \| Configure CVE remediation workflow | cve_remediation | `automation_orchestrator_cve_remediation.yml` | `site_cve_remediation_workflow_credentials` |
 | CVE remediation \| Assess hosts / Apply fix | cve_remediation | `cve_remediation_assess.yml` / `_apply.yml` | site machine credential (launched by the AO workflow) |
 | Automation portal \| Install on OpenShift | automation_portal | `openshift_automation_portal.yml` | OpenShift API, Ansible Automation Platform |
+| Developer Hub \| Install with the Ansible plug-ins on OpenShift | automation_developer_hub | `openshift_automation_developer_hub.yml` | OpenShift API, Ansible Automation Platform |
 | Automation hub \| Sync collection repositories (scheduled) | platform_management | `sync_automation_hub.yml` | Configuration as code - Ansible Automation Platform |
 
 Order on a fresh cluster: run `playbooks/initialize_automation_platform.yml` (it launches the configure job template),
 then **Install on OpenShift**, **Configure Ansible Automation Platform integration** (test single sign-on in a browser),
 **Configure LLM provider integration**, and **Configure CVE remediation workflow**. The portal is separate:
 **Automation portal \| Install on OpenShift** any time after initialization (open the reported URL and sign in with an
-AAP account to verify).
+AAP account to verify). Developer Hub likewise: **Developer Hub \| Install with the Ansible plug-ins on OpenShift**.

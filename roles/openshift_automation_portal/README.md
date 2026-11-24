@@ -7,6 +7,9 @@ discovered from the cluster and the job's credentials when left empty.
 
 What it does (AAP 2.7 install guide, "Install automation portal on OpenShift using the operator"):
 
+0. **Red Hat Developer Hub operator** through the shared role `openshift_developer_hub_operator` (installs it, or
+   adopts an existing Subscription; `openshift_automation_portal_manage_developer_hub_operator: false` leaves it to the
+   portal operator).
 1. **Operator** `automation-portal-operator` (channel `fast`): namespace, OperatorGroup targeting the portal namespace
    (OwnNamespace, as in the guide), Subscription; waits for the ClusterServiceVersion. When the first AutomationPortal is
    created, the operator installs the Red Hat Developer Hub (RHDH) operator itself if it is missing.
