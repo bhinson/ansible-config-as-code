@@ -11,6 +11,10 @@
       {{ (openshift_automation_portal_job_template_exclude_labels.split(',')
           if openshift_automation_portal_job_template_exclude_labels is string
           else openshift_automation_portal_job_template_exclude_labels) | map('trim') | select | list }}
+    __portal_collection_repositories: >-
+      {{ (openshift_automation_portal_collection_repositories.split(',')
+          if openshift_automation_portal_collection_repositories is string
+          else openshift_automation_portal_collection_repositories) | map('trim') | select | list }}
     __portal_admin_users: >-
       {{ (openshift_automation_portal_admin_users.split(',') if openshift_automation_portal_admin_users is string
           else openshift_automation_portal_admin_users) | map('trim') | select | list }}

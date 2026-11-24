@@ -48,8 +48,10 @@ openshift_automation_portal_catalog_sync_interval: 60
 # Only job templates with all of these labels / without any of these labels (list or comma-separated)
 openshift_automation_portal_job_template_labels: []
 openshift_automation_portal_job_template_exclude_labels: []
-# Synchronize private automation hub and Galaxy collections
+# Collection catalog from the private automation hub served by the AAP gateway (the portal reads it with the catalog token)
 openshift_automation_portal_collections_enabled: false
+# Hub repositories to synchronize (list or comma-separated); empty = operator default (rh-certified, validated, published)
+openshift_automation_portal_collection_repositories: []
 
 # --- permissions (spec.permissions) ---
 # Portal administrators, for example user:default/<AAP username> or group:default/<AAP team>; empty = operator default

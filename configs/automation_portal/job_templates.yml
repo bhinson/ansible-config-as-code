@@ -70,13 +70,19 @@ controller_templates__automation_portal:
           type: text
           required: false
           default: ""
-        - question_name: Synchronize collections
-          question_description: Show private automation hub and Galaxy collections in the catalog
+        - question_name: Synchronize private automation hub collections
+          question_description: Show the collections of the private automation hub (served by the Ansible Automation Platform gateway) in the portal
           variable: openshift_automation_portal_collections_enabled
           type: multiplechoice
           choices: ["false", "true"]
           required: true
-          default: "false"
+          default: "{{ site_automation_portal_collections_enabled }}"
+        - question_name: Private automation hub repositories
+          question_description: Comma-separated hub repositories to synchronize (empty = rh-certified, validated, published)
+          variable: openshift_automation_portal_collection_repositories
+          type: text
+          required: false
+          default: "{{ site_automation_portal_collection_repositories }}"
         - question_name: Portal administrators
           question_description: >-
             Comma-separated, for example user:default/<Ansible Automation Platform username> or group:default/<team>

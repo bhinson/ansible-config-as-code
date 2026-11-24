@@ -66,7 +66,8 @@ See `defaults/main.yml`. Inputs normally supplied by the job template survey:
 | `openshift_automation_portal_catalog_organizations` | `[]` | List or comma-separated; empty = operator default (`Default`) |
 | `openshift_automation_portal_catalog_sync_interval` | `60` | Minutes |
 | `openshift_automation_portal_job_template_labels` / `_exclude_labels` | `[]` | Catalog filter by AAP label |
-| `openshift_automation_portal_collections_enabled` | `false` | Private automation hub and Galaxy collections in the catalog |
+| `openshift_automation_portal_collections_enabled` | `false` | Collection catalog from the private automation hub (AAP gateway, catalog token) |
+| `openshift_automation_portal_collection_repositories` | `[]` | Hub repositories; empty = operator default (`rh-certified`, `validated`, `published`) |
 | `openshift_automation_portal_admin_users` | `[]` | `user:default/<AAP username>`, `group:default/<team>`; empty = operator default |
 | `openshift_automation_portal_registry_username` / `_password` | `""` | Empty = cluster global pull secret |
 | `openshift_automation_portal_validate_certs` | `true` | This job verifies the cluster API and AAP certificates |

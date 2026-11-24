@@ -32,6 +32,9 @@ plugins:
 {% endif %}
     collections:
       enabled: {{ openshift_automation_portal_collections_enabled | bool | to_json }}
+{% if __portal_collection_repositories | length > 0 %}
+      repositories: {{ __portal_collection_repositories | to_json }}
+{% endif %}
 {% if __portal_admin_users | length > 0 %}
 permissions:
   adminUsers: {{ __portal_admin_users | to_json }}

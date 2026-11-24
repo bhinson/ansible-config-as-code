@@ -50,6 +50,7 @@ ansible-playbook playbooks/initialize_automation_platform.yml -e @/path/to/site.
 | `site_automation_portal_catalog_organizations` | `Default` | AAP organizations synchronized into the portal catalog (automation_portal) |
 | `site_automation_portal_job_template_labels` | `""` | labels a job template needs to appear in the portal (automation_portal) |
 | `site_automation_portal_admin_users` | `""` (operator default) | portal administrators, `user:default/<AAP username>` (automation_portal) |
+| `site_automation_portal_collections_enabled` / `_collection_repositories` | `"false"` / `""` | show the private automation hub's collections in the portal, and which hub repositories (automation_portal) |
 | `site_private_automation_hub_url` | `https://aap.example.com` | your private automation hub (platform_management) |
 | `site_galaxy_credential_organizations` | `[{name: Default}]` | organizations whose Galaxy credential order is managed (platform_management) |
 | `site_galaxy_credentials` | private hub ×4, console.redhat.com ×2, Ansible Galaxy | the ordered list; private hub only is fastest once the mirrors hold everything (platform_management) |

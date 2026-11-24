@@ -70,6 +70,11 @@ oc logs -n <ns> -l app.kubernetes.io/name=automation-portal-operator       # ope
 - `SecretsValid=False`: the message names the Secret/key.
 - Catalog sync runs as scheduled tasks (`AapEntityProvider`, `AAPJobTemplateProvider`) every `syncInterval` minutes; the
   schedule lives in the portal database, so a pod restart does not run it early. Use the portal's manual sync to refresh now.
+- Collections page "nothing configured": `spec.plugins.catalog.collections.enabled: true` (+ `repositories`) makes the
+  operator generate the `pahCollections` content source (Helm docs: `catalog.providers.rhaap.production.sync.pahCollections`,
+  daily per repository). It reads the private automation hub through the AAP gateway (`aap-host-url`) with the catalog
+  token, so no extra credential; the first sync starts at pod start (many `pulp/api/v3/content/ansible/collection_versions`
+  requests). Git content discovery (`gitContents`) is separate and needs source control credentials.
 - Catalog empty: check the token user's visibility, `spec.plugins.catalog.orgs` (single-org deployments only use the
   first entry) and label filters; changes appear after the next sync (`syncInterval`, minutes).
 - Anything not exposed as a role variable: `openshift_automation_portal_spec_overrides` (merged into the spec), e.g. an

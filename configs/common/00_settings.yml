@@ -53,6 +53,10 @@ site_automation_orchestrator_storage_class: ""
 site_automation_portal_catalog_organizations: Default
 site_automation_portal_job_template_labels: ""
 site_automation_portal_admin_users: ""
+# Collection catalog from the private automation hub ("true"/"false") and the hub repositories it reads (comma-separated;
+# empty = operator default rh-certified, validated, published).
+site_automation_portal_collections_enabled: "false"
+site_automation_portal_collection_repositories: ""
 
 # --- platform_management area (only used when that area is selected) ---
 # Private automation hub base URL (usually the AAP gateway URL); its repositories are served under /api/galaxy/content/.
