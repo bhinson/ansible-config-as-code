@@ -46,13 +46,16 @@
     kind: Ingress
     name: cluster
   register: __portal_ingress_config
-  when: ansible_automation_portal_route_host | default('', true) | length == 0
 
-- name: Discover | Set the portal route hostname
+# Custom host from the variable, else the host OpenShift generates for the operator's route (<route name>-<namespace>.
+# <domain>, route name backstage-<name>). portal.yml recomputes it from the deployed custom resource's status.
+- name: Discover | Set the expected portal route hostname
   ansible.builtin.set_fact:
+    __portal_route_host_custom: "{{ ansible_automation_portal_route_host | default('', true) }}"
+    __portal_apps_domain: "{{ __portal_ingress_config.resources[0].spec.domain }}"
     __portal_route_host: >-
       {{ ansible_automation_portal_route_host | default('', true)
-         or (ansible_automation_portal_name ~ '-' ~ ansible_automation_portal_namespace ~ '.'
+         or ('backstage-' ~ ansible_automation_portal_name ~ '-' ~ ansible_automation_portal_namespace ~ '.'
              ~ __portal_ingress_config.resources[0].spec.domain) }}
 
 - name: Discover | Read the OpenShift ingress certificate authority

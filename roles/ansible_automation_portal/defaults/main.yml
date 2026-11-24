@@ -17,8 +17,8 @@ ansible_automation_portal_operator_source: redhat-operators
 # --- instance ---
 ansible_automation_portal_namespace: automation-portal
 ansible_automation_portal_name: portal
-# Route hostname; empty = <name>-<namespace>.<cluster ingress domain> (the usual OpenShift route pattern). The RHDH
-# operator's own default would be backstage-<name>-<namespace>.<domain>.
+# Route hostname; empty = the default: OpenShift generates <route name>-<namespace>.<apps domain> for the route the
+# Red Hat Developer Hub operator creates (backstage-<name>), e.g. backstage-portal-automation-portal.apps.example.com.
 ansible_automation_portal_route_host: ""
 # Secret with the AAP credentials (keys aap-host-url, oauth-client-id, oauth-client-secret, aap-token)
 ansible_automation_portal_credentials_secret: secrets-rhaap-portal

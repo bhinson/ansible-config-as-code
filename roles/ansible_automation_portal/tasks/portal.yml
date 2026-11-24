@@ -35,16 +35,63 @@
 
 # The configuration reference documents status.url, but operator 2.3 leaves it empty and reports the managed Backstage
 # custom resource as status.deploymentCR (documented as backstageCR); the RHDH operator names its route backstage-<that name>.
-# The role always sets spec.deployment.route.host, so wait until that route serves the expected host (the phase can still
-# say Running from before a hostname change).
+# Wait until that route serves the expected host: the custom one, or OpenShift's default for the route name (the phase can
+# still say Running from before a hostname change).
+- name: Portal | Work out the route name and expected hostname
+  ansible.builtin.set_fact:
+    __portal_route_name: >-
+      backstage-{{ __portal_instance.resources[0].status.deploymentCR
+                   | default(__portal_instance.resources[0].status.backstageCR | default(ansible_automation_portal_name)) }}
+
+- name: Portal | Set the expected hostname
+  ansible.builtin.set_fact:
+    __portal_route_host: >-
+      {{ __portal_route_host_custom
+         or (__portal_route_name ~ '-' ~ ansible_automation_portal_namespace ~ '.' ~ __portal_apps_domain) }}
+
+# OpenShift generates a route host only when the route is created; removing a custom host later leaves the old one in
+# place. To return to the default, delete the route once; the Red Hat Developer Hub (RHDH) operator doesn't watch its
+# routes, so an annotation change on its Backstage custom resource (name status.deploymentCR) makes it recreate the route.
+- name: Portal | Read the current route
+  kubernetes.core.k8s_info:
+    api_version: route.openshift.io/v1
+    kind: Route
+    namespace: "{{ ansible_automation_portal_namespace }}"
+    name: "{{ __portal_route_name }}"
+  register: __portal_current_route
+
+- name: Portal | Delete the route so it is recreated with the default hostname
+  redhat.openshift.k8s:  # noqa: fqcn[canonical]
+    state: absent
+    api_version: route.openshift.io/v1
+    kind: Route
+    namespace: "{{ ansible_automation_portal_namespace }}"
+    name: "{{ __portal_route_name }}"
+  when:
+    - __portal_route_host_custom | length == 0
+    - __portal_current_route.resources | length > 0
+    - __portal_current_route.resources[0].spec.host != __portal_route_host
+  register: __portal_route_delete
+
+- name: Portal | Make the Red Hat Developer Hub operator recreate the route
+  redhat.openshift.k8s:  # noqa: fqcn[canonical]
+    state: patched
+    api_version: rhdh.redhat.com/v1alpha5
+    kind: Backstage
+    namespace: "{{ ansible_automation_portal_namespace }}"
+    name: "{{ __portal_route_name | regex_replace('^backstage-', '') }}"
+    definition:
+      metadata:
+        annotations:
+          automationportal.ansible-config-as-code/route-reset: "{{ now(utc=true).isoformat() }}"
+  when: __portal_route_delete is changed  # noqa: no-handler (the wait below needs the new route)
+
 - name: Portal | Wait for the route to use the expected hostname
   kubernetes.core.k8s_info:
     api_version: route.openshift.io/v1
     kind: Route
     namespace: "{{ ansible_automation_portal_namespace }}"
-    name: >-
-      backstage-{{ __portal_instance.resources[0].status.deploymentCR
-                   | default(__portal_instance.resources[0].status.backstageCR | default(ansible_automation_portal_name)) }}
+    name: "{{ __portal_route_name }}"
   register: __portal_route
   until: (__portal_route.resources[0].spec.host | default('')) == __portal_route_host
   retries: "{{ ansible_automation_portal_wait_retries }}"

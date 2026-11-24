@@ -10,8 +10,10 @@ aap:
 deployment:
   caCertificates:
     secretRef: {{ ansible_automation_portal_name }}-ca-bundle
+{% if __portal_route_host_custom | length > 0 %}
   route:
-    host: {{ __portal_route_host }}
+    host: {{ __portal_route_host_custom }}
+{% endif %}
 plugins:
   registry: {{ ansible_automation_portal_registry }}
   catalog:

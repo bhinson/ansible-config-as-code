@@ -29,9 +29,12 @@ operator" (the Helm chart chapter is the other, older method; don't mix them).
   `spec.backstage.*`. The API server **silently drops** unknown fields, so a docs-style `spec.backstage` block is ignored
   with no error. Check fields with `oc get crd automationportals.automationportal.aap.redhat.com -o json`.
 - `status.url` stays empty; `status.deploymentCR` (docs: `backstageCR`) names the Backstage CR, and the RHDH route is
-  `backstage-<deploymentCR>`. The route object name is fixed; its host defaults to `backstage-<name>-<namespace>.<apps
-  domain>`, so the role always sets `spec.deployment.route.host` (default `<name>-<namespace>.<apps domain>`) and waits
-  for the route to show it (after a host change the phase stays Running, so don't trust the phase alone).
+  `backstage-<deploymentCR>`. The route object name is fixed; OpenShift generates its host as `backstage-<name>-<namespace>.
+  <apps domain>` unless `spec.deployment.route.host` is set (role variable `ansible_automation_portal_route_host`). The
+  role waits for the route to show the expected host (after a host change the phase stays Running).
+- Removing a custom host does **not** restore the default: OpenShift generates a route host only at creation. Delete the
+  route; the RHDH operator doesn't watch routes, so change an annotation on the Backstage CR (`rhdh.redhat.com/v1alpha5`)
+  to make it recreate the route. The role does both.
 - With `caCertificates`, only `NODE_EXTRA_CA_CERTS` is set (adds to the default trust store); no `SSL_CERT_FILE`.
 - Containers in the portal pod: `backstage-backend` and `ansible-devtools-server`.
 
