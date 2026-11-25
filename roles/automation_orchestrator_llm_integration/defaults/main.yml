@@ -51,4 +51,7 @@ automation_orchestrator_llm_integration_default_model: ""
 # --- waits ---
 automation_orchestrator_llm_integration_wait_retries: 30
 automation_orchestrator_llm_integration_wait_delay: 10
+# How long to wait for AO's scheduled model discovery to list wanted models on an existing integration (after an API
+# key or provider change). AO default discovery interval: 900 s (setting integrations.discovery_interval_seconds).
+automation_orchestrator_llm_integration_discovery_wait_seconds: 1800
 ...

@@ -2,13 +2,30 @@
 # OpenAPI: GET /api/v1/integrations/{id}/models (LLMModelRead: id = AO UUID, model_id = provider ID),
 # PATCH .../models/bulk_update (LLMModelBulkUpdate: model_ids are AO UUIDs), PATCH .../models/{id} (is_default).
 # Users name models by provider ID; this file maps them to AO UUIDs.
-- name: Models | List the integration's models
+# Wanted = the requested models, else every model the provider offers now (connection test in integration.yml), so
+# models a new API key can no longer use get disabled.
+- name: Models | Work out the wanted models
+  ansible.builtin.set_fact:
+    __orchestrator_llm_wanted: >-
+      {{ __orchestrator_llm_enabled_models if __orchestrator_llm_enabled_models | length > 0
+         else __orchestrator_llm_discover.json.discovered_models | default([], true) | map(attribute='id') | list }}
+
+# AO adds models to an existing integration only during its scheduled resource discovery
+# (setting integrations.discovery_interval_seconds; there is no on-demand refresh for LLM integrations, and
+# POST .../refresh is MCP-only). After an API key or provider change, wait until the wanted models appear.
+- name: Models | List the integration's models (waits for AO's scheduled discovery when wanted models are missing)
   ansible.builtin.uri:
     url: "{{ __orchestrator_llm_url }}/api/v1/integrations/{{ __orchestrator_llm_id }}/models?limit=100"
     headers: "{{ __orchestrator_llm_headers }}"
     ca_path: "{{ __orchestrator_llm_ca_file.path }}"
     validate_certs: "{{ automation_orchestrator_llm_integration_validate_certs | bool }}"
   register: __orchestrator_llm_models
+  until: >-
+    (__orchestrator_llm_wanted
+     + ([automation_orchestrator_llm_integration_default_model] if automation_orchestrator_llm_integration_default_model | length > 0 else []))
+    | difference(__orchestrator_llm_models.json.resources | default([]) | map(attribute='model_id') | list) | length == 0
+  retries: "{{ (automation_orchestrator_llm_integration_discovery_wait_seconds | int / 30) | round(0, 'ceil') | int }}"
+  delay: 30
 
 - name: Models | Work out which models to change
   ansible.builtin.set_fact:
@@ -21,10 +38,6 @@
     __orchestrator_llm_default: >-
       {{ __orchestrator_llm_models.json.resources
          | selectattr('model_id', 'equalto', automation_orchestrator_llm_integration_default_model) | first | default({}) }}
-  vars:
-    __orchestrator_llm_wanted: >-
-      {{ __orchestrator_llm_enabled_models if __orchestrator_llm_enabled_models | length > 0
-         else __orchestrator_llm_models.json.resources | map(attribute='model_id') | list }}
 
 - name: Models | Enable or disable models
   ansible.builtin.uri:
@@ -62,9 +75,7 @@
 - name: Models | Summarize
   ansible.builtin.set_fact:
     __orchestrator_llm_enabled_report: >-
-      {{ __orchestrator_llm_models.json.resources
-         | selectattr('model_id', 'in', (__orchestrator_llm_enabled_models
-                                         or (__orchestrator_llm_models.json.resources | map(attribute='model_id') | list)))
+      {{ __orchestrator_llm_models.json.resources | selectattr('model_id', 'in', __orchestrator_llm_wanted)
          | map(attribute='model_id') | join(', ') }}{{
          (' (default ' ~ automation_orchestrator_llm_integration_default_model ~ ')')
          if automation_orchestrator_llm_integration_default_model | length > 0 else '' }}

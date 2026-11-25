@@ -17,8 +17,15 @@ What it does:
    requested model isn't offered.
 3. **Integration**: created with the initial model selection, or updated when the provider, base URL, TLS settings,
    credential, scope or description drift. Then `POST /api/v1/integrations/{id}/validate`.
-4. **Models**: enables the requested models (all discovered models when none are listed), disables the rest, and sets
-   the default model. Users give provider model IDs; the role maps them to AO model IDs.
+4. **Models**: enables the requested models (all models the provider offers now when none are listed), disables the
+   rest, and sets the default model. Users give provider model IDs; the role maps them to AO model IDs. AO adds models
+   to an existing integration only during its scheduled resource discovery (setting
+   `integrations.discovery_interval_seconds`, default 900 s; no on-demand refresh for LLM integrations), so after an
+   API key or provider change the role waits up to `..._discovery_wait_seconds` for the wanted models to appear.
+
+The API key update always reports `ok`: AO never returns secrets, so the role can't tell whether the key changed. Check
+the credential's `updated_at` in AO. Workflows pin a model in their agent nodes, so if a new key can't use that model,
+redeploy those workflows with a model it can use.
 
 ## Requirements
 
@@ -42,6 +49,7 @@ See `defaults/main.yml`. Inputs normally supplied by the AAP job template survey
 | `automation_orchestrator_llm_integration_api_key` | `""` | Required; survey password field |
 | `automation_orchestrator_llm_integration_enabled_models` | `[]` | List or comma-separated provider model IDs; empty = all |
 | `automation_orchestrator_llm_integration_default_model` | `""` | Provider model ID; empty = leave as is |
+| `automation_orchestrator_llm_integration_discovery_wait_seconds` | `1800` | Wait for AO's scheduled model discovery to list the wanted models (existing integration) |
 | `automation_orchestrator_llm_integration_scope` | `global` | `global` or `project` |
 | `automation_orchestrator_llm_integration_provider_validate_certs` | `true` | AO verifies the provider certificate; `false` sets `insecure_skip_tls_verify` |
 | `automation_orchestrator_llm_integration_provider_ca_certificate` | `""` | PEM CA bundle AO trusts for the provider (internally signed certificates) |
