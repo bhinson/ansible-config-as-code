@@ -41,7 +41,7 @@ controller_templates__automation_orchestrator_llm_integration:
           variable: automation_orchestrator_llm_integration_base_url
           type: text
           required: false
-          default: ""
+          default: "{{ site_automation_orchestrator_llm_base_url }}"
         - question_name: API key
           question_description: Stored in Automation Orchestrator as an LLM Provider credential (health checks and model discovery)
           variable: automation_orchestrator_llm_integration_api_key

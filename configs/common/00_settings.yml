@@ -71,6 +71,10 @@ site_automation_developer_hub_super_users: ""
 # MCP server survey default (automation_mcp): "true" lets AI agents launch jobs and change AAP (still limited by each
 # user's permissions); "false" = read-only tools.
 site_automation_mcp_allow_write_operations: "false"
+# LLM provider survey default (automation_orchestrator_llm_integration): OpenAI v1 API-compatible base URL, for example
+# https://llm.example.com/v1 (empty = none; required for the custom and red_hat_ai providers). The API key stays a
+# survey password field.
+site_automation_orchestrator_llm_base_url: ""
 # Survey default of the configure job template: channel of the AAP operator Subscription (role
 # openshift_ansible_platform_operator installs it if missing; an existing Subscription on another channel makes the run
 # fail unless the survey allows the change, which upgrades AAP).

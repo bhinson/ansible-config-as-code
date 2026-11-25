@@ -60,6 +60,7 @@ ansible-playbook playbooks/initialize_automation_platform.yml -e @/path/to/site.
 | `site_automation_platform_operator_channel` | `stable-2.7` | AAP operator Subscription channel (survey default of the configure job template; a different channel on an existing Subscription fails unless allowed in the survey, because it upgrades AAP) |
 | `site_openshift_virtual_machine_inventory` / `_namespaces` | `"false"` / `""` | survey defaults of the configure job template: create the inventory "Configuration as code - OpenShift virtual machines", and the namespaces it reads (empty = all) |
 | `site_automation_mcp_allow_write_operations` | `"false"` | `"true"` = MCP server tools may change AAP (survey default; automation_mcp) |
+| `site_automation_orchestrator_llm_base_url` | `""` | LLM provider base URL (survey default; automation_orchestrator_llm_integration), so a rerun only needs the API key |
 | `site_private_automation_hub_url` | `https://aap.example.com` | your private automation hub (platform_management) |
 | `site_galaxy_credential_organizations` | `[{name: Default}]` | organizations whose Galaxy credential order is managed (platform_management) |
 | `site_galaxy_credentials` | private hub ×4, console.redhat.com ×2, Ansible Galaxy | the ordered list; private hub only is fastest once the mirrors hold everything (platform_management) |
