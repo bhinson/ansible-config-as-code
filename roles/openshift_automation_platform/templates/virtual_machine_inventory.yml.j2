@@ -1,0 +1,76 @@
+---
+# Read-only service account for the AAP "OpenShift Virtualization" inventory source (kubevirt.core.kubevirt plugin):
+# it lists projects/namespaces (only when no namespaces are given), virtual machines, virtual machine instances and
+# services (SSH services set ansible_host/ansible_port), and reads the cluster DNS config (base_domain options).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ openshift_automation_platform_virtual_machine_inventory_service_account_namespace }}
+  labels:
+    app.kubernetes.io/managed-by: ansible-config-as-code
+    app.kubernetes.io/part-of: openshift_automation_platform
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ openshift_automation_platform_virtual_machine_inventory_service_account }}
+  namespace: {{ openshift_automation_platform_virtual_machine_inventory_service_account_namespace }}
+---
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/service-account-token
+metadata:
+  name: {{ openshift_automation_platform_virtual_machine_inventory_service_account }}-token
+  namespace: {{ openshift_automation_platform_virtual_machine_inventory_service_account_namespace }}
+  annotations:
+    kubernetes.io/service-account.name: {{ openshift_automation_platform_virtual_machine_inventory_service_account }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ openshift_automation_platform_virtual_machine_inventory_cluster_role }}
+rules:
+  - apiGroups: [""]
+    resources: [namespaces, services]
+    verbs: [get, list]
+  - apiGroups: [project.openshift.io]
+    resources: [projects]
+    verbs: [get, list]
+  - apiGroups: [kubevirt.io]
+    resources: [virtualmachines, virtualmachineinstances]
+    verbs: [get, list]
+  - apiGroups: [config.openshift.io]
+    resources: [dnses]
+    verbs: [get]
+{% if __automation_platform_namespaces | length == 0 %}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ openshift_automation_platform_virtual_machine_inventory_cluster_role }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ openshift_automation_platform_virtual_machine_inventory_cluster_role }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ openshift_automation_platform_virtual_machine_inventory_service_account }}
+    namespace: {{ openshift_automation_platform_virtual_machine_inventory_service_account_namespace }}
+{% endif %}
+{% for namespace in __automation_platform_namespaces %}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ openshift_automation_platform_virtual_machine_inventory_cluster_role }}
+  namespace: {{ namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ openshift_automation_platform_virtual_machine_inventory_cluster_role }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ openshift_automation_platform_virtual_machine_inventory_service_account }}
+    namespace: {{ openshift_automation_platform_virtual_machine_inventory_service_account_namespace }}
+{% endfor %}
+...

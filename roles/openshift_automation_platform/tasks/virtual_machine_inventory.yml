@@ -1,0 +1,141 @@
+---
+# Optional inventory of the OpenShift Virtualization virtual machines, built on AAP's own "OpenShift Virtualization"
+# inventory source (kubevirt.core.kubevirt plugin in the execution environment), synced on every launch that uses it.
+# The source needs an "OpenShift or Kubernetes API Bearer Token" credential; this creates a read-only service account
+# for it instead of reusing this job's (usually cluster-admin) OpenShift API token.
+- name: Virtual machine inventory | Create the service account and its credential inputs
+  module_defaults:
+    group/kubernetes.core.k8s:
+      validate_certs: "{{ openshift_automation_platform_validate_certs | bool }}"
+    redhat.openshift.k8s:
+      validate_certs: "{{ openshift_automation_platform_validate_certs | bool }}"
+  block:
+    - name: Virtual machine inventory | Normalize inputs
+      ansible.builtin.set_fact:
+        __automation_platform_namespaces: >-
+          {{ (openshift_automation_platform_virtual_machine_inventory_namespaces.split(',')
+              if openshift_automation_platform_virtual_machine_inventory_namespaces is string
+              else openshift_automation_platform_virtual_machine_inventory_namespaces) | map('trim') | select | list }}
+        __automation_platform_api_url: >-
+          {{ openshift_automation_platform_virtual_machine_inventory_api_url
+             | default(lookup('ansible.builtin.env', 'K8S_AUTH_HOST'), true) }}
+        __automation_platform_api_ca_file: "{{ lookup('ansible.builtin.env', 'K8S_AUTH_SSL_CA_CERT') }}"
+        __automation_platform_organization: >-
+          {{ openshift_automation_platform_virtual_machine_inventory_organization
+             | default(site_organization | default('Default'), true) }}
+
+    - name: Virtual machine inventory | Check inputs
+      ansible.builtin.assert:
+        that:
+          - __automation_platform_api_url is match('https://.+')
+          - >-
+            openshift_automation_platform_virtual_machine_inventory_api_ca_certificate | length > 0
+            or __automation_platform_api_ca_file | length > 0
+            or not (openshift_automation_platform_virtual_machine_inventory_verify_ssl | bool)
+        fail_msg: >-
+          The virtual machines inventory needs the cluster API URL and certificate authority: attach the OpenShift API
+          (configuration as code) credential to this job template, or set
+          openshift_automation_platform_virtual_machine_inventory_api_url / _api_ca_certificate.
+        quiet: true
+
+    - name: Virtual machine inventory | Look up the service account namespace
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Namespace
+        name: "{{ openshift_automation_platform_virtual_machine_inventory_service_account_namespace }}"
+      register: __automation_platform_namespace_lookup
+
+    # A dry run of objects in a namespace that doesn't exist yet fails, so check mode then plans only the cluster objects
+    - name: Virtual machine inventory | Apply the namespace, service account, token Secret and role bindings  # noqa: fqcn[canonical]
+      redhat.openshift.k8s:
+        state: present
+        apply: true
+        definition: >-
+          {{ __automation_platform_cluster_objects
+             if not ansible_check_mode or __automation_platform_namespace_lookup.resources | length > 0
+             else __automation_platform_cluster_objects | rejectattr('metadata.namespace', 'defined') | list }}
+      vars:
+        __automation_platform_cluster_objects: >-
+          {{ lookup('ansible.builtin.template', 'virtual_machine_inventory.yml.j2') | ansible.builtin.from_yaml_all | list }}
+
+    - name: Virtual machine inventory | Remove the cluster-wide role binding (namespaces are listed)  # noqa: fqcn[canonical]
+      redhat.openshift.k8s:
+        state: absent
+        api_version: rbac.authorization.k8s.io/v1
+        kind: ClusterRoleBinding
+        name: "{{ openshift_automation_platform_virtual_machine_inventory_cluster_role }}"
+      when: __automation_platform_namespaces | length > 0
+
+    - name: Virtual machine inventory | Wait for the service account token
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Secret
+        namespace: "{{ openshift_automation_platform_virtual_machine_inventory_service_account_namespace }}"
+        name: "{{ openshift_automation_platform_virtual_machine_inventory_service_account }}-token"
+      register: __automation_platform_token_secret
+      # in check mode the Secret may not exist yet; the credential is then planned without a token
+      until: >-
+        ansible_check_mode
+        or (__automation_platform_token_secret.resources | length > 0
+            and __automation_platform_token_secret.resources[0].data.token | default('') | length > 0)
+      retries: "{{ openshift_automation_platform_wait_retries }}"
+      delay: "{{ openshift_automation_platform_wait_delay }}"
+      no_log: true
+
+    # dispatch variable names (<dispatch variable>__<area>), merged by configs/common/aggregate.yml
+    - name: Virtual machine inventory | Add the credential, inventory and source to the objects to apply  # noqa: var-naming[no-role-prefix]
+      ansible.builtin.set_fact:
+        controller_credentials__virtual_machine_inventory:
+          - name: "{{ openshift_automation_platform_virtual_machine_inventory_credential_name }}"
+            description: >-
+              Read-only service account
+              {{ openshift_automation_platform_virtual_machine_inventory_service_account_namespace }}/{{
+              openshift_automation_platform_virtual_machine_inventory_service_account }} for the OpenShift
+              Virtualization inventory source
+            organization: "{{ __automation_platform_organization }}"
+            credential_type: OpenShift or Kubernetes API Bearer Token
+            update_secrets: "{{ openshift_automation_platform_virtual_machine_inventory_update_secrets | bool }}"
+            inputs:
+              host: "{{ __automation_platform_api_url }}"
+              bearer_token: >-
+                {{ (__automation_platform_token_secret.resources | first | default({})).data.token | default('')
+                   | ansible.builtin.b64decode }}
+              verify_ssl: "{{ openshift_automation_platform_virtual_machine_inventory_verify_ssl | bool }}"
+              ssl_ca_cert: >-
+                {{ openshift_automation_platform_virtual_machine_inventory_api_ca_certificate
+                   if openshift_automation_platform_virtual_machine_inventory_api_ca_certificate | length > 0
+                   else (lookup('ansible.builtin.file', __automation_platform_api_ca_file)
+                         if __automation_platform_api_ca_file | length > 0 else '') }}
+        controller_inventories__virtual_machine_inventory:
+          - name: "{{ openshift_automation_platform_virtual_machine_inventory_name }}"
+            description: Virtual machines in OpenShift Virtualization (synced from the cluster when a job using it launches)
+            organization: "{{ __automation_platform_organization }}"
+        controller_inventory_sources__virtual_machine_inventory:
+          - name: "{{ openshift_automation_platform_virtual_machine_inventory_source_name }}"
+            description: OpenShift Virtualization virtual machines (kubevirt.core.kubevirt inventory plugin)
+            inventory: "{{ openshift_automation_platform_virtual_machine_inventory_name }}"
+            organization: "{{ __automation_platform_organization }}"
+            source: openshift_virtualization
+            credential: "{{ openshift_automation_platform_virtual_machine_inventory_credential_name }}"
+            execution_environment: "{{ openshift_automation_platform_virtual_machine_inventory_execution_environment }}"
+            # JSON text: the dispatch role passes source_vars through regex_replace, which turns a dict into a string
+            source_vars: >-
+              {{ (({'connections': [{'namespaces': __automation_platform_namespaces}]}
+                   if __automation_platform_namespaces | length > 0 else {})
+                  | combine(openshift_automation_platform_virtual_machine_inventory_source_variables, recursive=true))
+                 | to_json }}
+            overwrite: true
+            overwrite_vars: true
+            update_on_launch: true
+            update_cache_timeout: 0
+      no_log: true
+
+    - name: Virtual machine inventory | Report
+      ansible.builtin.debug:
+        msg: >-
+          Inventory '{{ openshift_automation_platform_virtual_machine_inventory_name }}' from
+          {{ 'namespaces ' ~ (__automation_platform_namespaces | join(', ')) if __automation_platform_namespaces | length > 0
+             else 'every namespace' }} (service account
+          {{ openshift_automation_platform_virtual_machine_inventory_service_account_namespace }}/{{
+          openshift_automation_platform_virtual_machine_inventory_service_account }}); not attached to any job template.
+...

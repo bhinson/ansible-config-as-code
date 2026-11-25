@@ -18,7 +18,7 @@ procedures are linked, not copied, so they can't drift from the collection.
   writes `env_variables.yml` with every placeholder set to `CHANGE_ME`. That file holds real secrets once filled in:
   keep it out of git (it's in `.gitignore`) or encrypt it with `ansible-vault`.
 - Export output goes to `exports/automation_platform/` (git-ignored). Only curated files move into an area folder under `configs/`, with variables renamed to `<dispatch variable>__<area>` (see `configs/README.md`).
-- Reading or exporting is safe; **applying** (`configure_automation_platform.yml`) writes to AAP, so confirm with the user first
+- Reading or exporting is safe; **applying** (`openshift_automation_platform.yml`) writes to AAP, so confirm with the user first
   and run with `--check` before a real run.
 
 ## Steps
@@ -34,7 +34,7 @@ Locally:
      [export-jt-related-pre-pro](https://github.com/redhat-cop/aap_configuration_extended/blob/devel/skills/export-jt-related-pre-pro/SKILL.md), writing output under `exports/automation_platform/`.
 4. Review `exports/automation_platform/`: drop defaults/noise, check names, then copy files into an area folder under `configs/`, renaming the
    dispatch variable names to `<name>__<area>` (`controller_projects`, `controller_templates`, `aap_organizations`, ...).
-5. Validate with no changes expected: `ansible-playbook playbooks/configure_automation_platform.yml --check`. Anything reported as
+5. Validate with no changes expected: `ansible-playbook playbooks/openshift_automation_platform.yml --check`. Anything reported as
    changed is drift between code and AAP; fix the code or confirm the change with the user.
 
 ## Gotchas

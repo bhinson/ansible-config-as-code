@@ -3,15 +3,54 @@
 controller_templates__common:
   # Created first by playbooks/initialize_automation_platform.yml; managed here afterwards. Its extra vars are the site_*
   # values of the run that applies this file, so the site values stay in AAP, not in the repo.
+  # The OpenShift API credential is only used when the survey asks for the virtual machines inventory.
   - name: Configuration as code | Apply Ansible Automation Platform configuration
-    description: Apply configs/ from this repo (common and the selected areas) with infra.aap_configuration.dispatch
+    description: >-
+      Apply configs/ from this repo (common and the selected areas) with infra.aap_configuration.dispatch, optionally
+      with an OpenShift virtual machines inventory (role openshift_automation_platform)
     organization: "{{ site_organization }}"
     project: Configuration as code - ansible-config-as-code
-    playbook: playbooks/configure_automation_platform.yml
+    playbook: playbooks/openshift_automation_platform.yml
     inventory: Configuration as code - localhost
     execution_environment: "{{ site_execution_environment }}"
     credentials:
       - Configuration as code - Ansible Automation Platform
+      - Configuration as code - OpenShift API
     extra_vars: >-
       {{ dict(query('ansible.builtin.varnames', '^site_') | zip(query('ansible.builtin.vars', *query('ansible.builtin.varnames', '^site_')))) }}
+    survey_enabled: true
+    survey_spec:
+      name: Configuration as code
+      description: Optional objects created by openshift_automation_platform in addition to configs/
+      spec:
+        - question_name: Create the OpenShift virtual machines inventory
+          question_description: >-
+            true = create or update the inventory "Configuration as code - OpenShift virtual machines" (OpenShift
+            Virtualization source, synced when a job using it launches; not attached to any job template), its
+            credential and a read-only service account on the cluster; false = leave it alone
+          variable: openshift_automation_platform_virtual_machine_inventory
+          type: multiplechoice
+          choices: ["false", "true"]
+          required: true
+          default: "{{ site_openshift_virtual_machine_inventory }}"
+        - question_name: Virtual machine namespaces
+          question_description: Comma-separated namespaces to read virtual machines from; empty = every namespace
+          variable: openshift_automation_platform_virtual_machine_inventory_namespaces
+          type: text
+          required: false
+          default: "{{ site_openshift_virtual_machine_inventory_namespaces }}"
+        - question_name: Inventory sync verifies the cluster API certificate
+          question_description: Stored in the inventory credential; uses the certificate authority of the OpenShift API credential
+          variable: openshift_automation_platform_virtual_machine_inventory_verify_ssl
+          type: multiplechoice
+          choices: ["true", "false"]
+          required: true
+          default: "true"
+        - question_name: Verify TLS certificates from this job
+          question_description: This job's calls to the cluster API (virtual machines inventory only)
+          variable: openshift_automation_platform_validate_certs
+          type: multiplechoice
+          choices: ["true", "false"]
+          required: true
+          default: "true"
 ...

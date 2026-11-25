@@ -15,7 +15,8 @@ Red Hat certified collections first, Red Hat validated content second, and commu
 | Path | Purpose |
 |---|---|
 | `playbooks/openshift_automation_orchestrator.yml` | Install Red Hat Automation Orchestrator (AO) on OpenShift (operator, PostgreSQL, instance) |
-| `playbooks/configure_automation_platform.yml` | Apply `configs/common` and the selected areas via `infra.aap_configuration.dispatch` |
+| `playbooks/openshift_automation_platform.yml` | Apply `configs/common` and the selected areas via `infra.aap_configuration.dispatch` (`configure_automation_platform.yml` is an alias) |
+| `roles/openshift_automation_platform/` | That configuration run, plus an optional OpenShift Virtualization virtual machines inventory (generic) |
 | `playbooks/sync_automation_hub.yml` | Sync private automation hub repositories (scheduled; area platform_management) |
 | `playbooks/export_automation_platform.yml` | Export the live AAP configuration to YAML (`infra.aap_configuration_extended.filetree_create`) |
 | `playbooks/automation_orchestrator_configuration.yml` | Connect AO to AAP (allowlists, integration, single sign-on) |
@@ -69,6 +70,8 @@ rest of this repo, then launches it.
    the inventory "Configuration as code - localhost", and the job template
    **"Configuration as code | Apply Ansible Automation Platform configuration"** (your site values become its extra vars),
    then launches that job template, which creates every other object in `configs/common` and the selected areas.
+   Its survey can also create the inventory "Configuration as code - OpenShift virtual machines" (AAP's OpenShift
+   Virtualization inventory source, synced on launch; attach it to job templates yourself).
 3. Afterwards, change the configuration in git and re-launch that job template. Run the Automation Orchestrator job
    templates in the order listed in `configs/README.md`, "Automation portal | Install on OpenShift" for the portal, "Developer Hub | Install with the Ansible plug-ins on
    OpenShift" for Developer Hub, and "MCP server | Install on OpenShift" for the MCP server.
@@ -83,7 +86,7 @@ Automation Orchestrator, automation portal and MCP server roles create (in AO, O
 
 **Without the initialization playbook** (AAP UI): create the same objects by hand: the credential type (inputs and injectors from
 `configs/common/credential_types.yml`), the two credentials, a project for this repo, an inventory with one
-host `localhost` (variable `ansible_connection: local`), and a job template for `playbooks/configure_automation_platform.yml`
+host `localhost` (variable `ansible_connection: local`), and a job template for `playbooks/openshift_automation_platform.yml`
 with the "Configuration as code - Ansible Automation Platform" credential and your site values as extra vars. Launch it.
 
 Local test runs (`--check`) need a Python 3.12 virtualenv with `requirements.txt` and `requirements-test.txt` (ansible-core

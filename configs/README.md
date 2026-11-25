@@ -4,7 +4,7 @@ AAP objects as data for `infra.aap_configuration.dispatch`, split into **areas**
 
 | Folder | Applied | What it creates |
 |---|---|---|
-| `common/` | always | settings, the "OpenShift API (configuration as code)" credential type, the two "Configuration as code - …" credentials, the project, the localhost inventory, and the job template that applies this folder |
+| `common/` | always | settings, the "OpenShift API (configuration as code)" credential type, the two "Configuration as code - …" credentials, the project, the localhost inventory with its `localhost` host, and the job template that applies this folder (its survey adds the optional OpenShift virtual machines inventory, role `openshift_automation_platform`) |
 | `automation_orchestrator_install/` | if selected | job template "Automation Orchestrator \| Install on OpenShift" |
 | `automation_orchestrator_integration/` | if selected | job template "Automation Orchestrator \| Configure Ansible Automation Platform integration" |
 | `automation_orchestrator_llm_integration/` | if selected | job template "Automation Orchestrator \| Configure LLM provider integration" |
@@ -16,7 +16,7 @@ AAP objects as data for `infra.aap_configuration.dispatch`, split into **areas**
 
 `site_configuration_areas` selects the areas (default: the seven use-case areas). Each area defines its objects under
 `<dispatch variable>__<area>` (for example `controller_templates__cve_remediation`); `common/aggregate.yml` merges
-whatever was loaded into the names the dispatch role reads, and `playbooks/tasks/load_configuration.yml` does the
+whatever was loaded into the names the dispatch role reads, and `roles/openshift_automation_platform/tasks/load_configuration.yml` does the
 loading for the configure, initialize and cleanup playbooks. Reference objects by **name**, never by ID.
 
 Dependencies between areas: `cve_remediation` needs an Automation Orchestrator (AO) that already has an AAP integration
@@ -57,6 +57,7 @@ ansible-playbook playbooks/initialize_automation_platform.yml -e @/path/to/site.
 | `site_automation_portal_collections_enabled` / `_collection_repositories` | `"false"` / `""` | show the private automation hub's collections in the portal, and which hub repositories (automation_portal) |
 | `site_developer_hub_operator_channel` | `fast` | Red Hat Developer Hub operator channel (`fast-<version>` = z-stream only) (automation_developer_hub) |
 | `site_automation_developer_hub_admin_users` / `_super_users` | `""` | Developer Hub RBAC administrators / super users, `user:default/<AAP username>` (automation_developer_hub) |
+| `site_openshift_virtual_machine_inventory` / `_namespaces` | `"false"` / `""` | survey defaults of the configure job template: create the inventory "Configuration as code - OpenShift virtual machines", and the namespaces it reads (empty = all) |
 | `site_automation_mcp_allow_write_operations` | `"false"` | `"true"` = MCP server tools may change AAP (survey default; automation_mcp) |
 | `site_private_automation_hub_url` | `https://aap.example.com` | your private automation hub (platform_management) |
 | `site_galaxy_credential_organizations` | `[{name: Default}]` | organizations whose Galaxy credential order is managed (platform_management) |
@@ -74,7 +75,7 @@ tokens) and `vaulted_red_hat_automation_hub_token` (console.redhat.com offline t
 
 | Template | Area | Playbook | Credentials |
 |---|---|---|---|
-| Configuration as code \| Apply Ansible Automation Platform configuration | common | `configure_automation_platform.yml` | Configuration as code - Ansible Automation Platform |
+| Configuration as code \| Apply Ansible Automation Platform configuration | common | `openshift_automation_platform.yml` | Configuration as code - Ansible Automation Platform, OpenShift API (virtual machines inventory) |
 | Automation Orchestrator \| Install on OpenShift | automation_orchestrator_install | `openshift_automation_orchestrator.yml` | Configuration as code - OpenShift API |
 | Automation Orchestrator \| Configure Ansible Automation Platform integration | automation_orchestrator_integration | `automation_orchestrator_configuration.yml` | OpenShift API, Ansible Automation Platform |
 | Automation Orchestrator \| Configure LLM provider integration | automation_orchestrator_llm_integration | `automation_orchestrator_llm_integration.yml` | OpenShift API |

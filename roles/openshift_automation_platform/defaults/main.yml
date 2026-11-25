@@ -1,0 +1,47 @@
+---
+# openshift_automation_platform: apply this repo's Ansible Automation Platform (AAP) configuration as code (configs/common
+# plus the areas in site_configuration_areas) with infra.aap_configuration.dispatch, and optionally add an inventory of
+# the OpenShift Virtualization virtual machines (AAP's built-in "OpenShift Virtualization" inventory source).
+# Site values belong in the configure job template's extra vars (site_*) and survey.
+
+# Folder with the configuration areas (configs/<area>/*.yml); default = configs/ of this repo
+openshift_automation_platform_configuration_directory: "{{ role_path }}/../../configs"
+
+# --- OpenShift virtual machines inventory (optional) ---
+# true = create or update the inventory, its OpenShift Virtualization source (update on launch) and its credential.
+# false = leave them alone (the cleanup playbook removes them). Survey answers are strings ("true"/"false").
+openshift_automation_platform_virtual_machine_inventory: false
+openshift_automation_platform_virtual_machine_inventory_name: Configuration as code - OpenShift virtual machines
+openshift_automation_platform_virtual_machine_inventory_source_name: Configuration as code - OpenShift virtual machines (OpenShift Virtualization)
+openshift_automation_platform_virtual_machine_inventory_credential_name: Configuration as code - OpenShift virtual machines
+# AAP organization of the inventory and credential; empty = site_organization (as for the configs/ objects)
+openshift_automation_platform_virtual_machine_inventory_organization: ""
+# Namespaces to read virtual machines from (list or comma-separated). Empty = every namespace; the service account then
+# gets a ClusterRoleBinding, otherwise only a RoleBinding in each listed namespace.
+openshift_automation_platform_virtual_machine_inventory_namespaces: []
+# More kubevirt.core.kubevirt inventory plugin options merged into the source variables (for example label_selector,
+# network_name, create_groups); see the plugin documentation. Wins over the generated connections entry.
+openshift_automation_platform_virtual_machine_inventory_source_variables: {}
+# Execution environment for the inventory sync (needs the kubevirt.core collection); empty = AAP's default
+openshift_automation_platform_virtual_machine_inventory_execution_environment: ""
+# Read-only service account whose token the AAP credential holds (created by this role)
+openshift_automation_platform_virtual_machine_inventory_service_account_namespace: automation-platform-inventory
+openshift_automation_platform_virtual_machine_inventory_service_account: virtual-machine-inventory
+openshift_automation_platform_virtual_machine_inventory_cluster_role: automation-platform-virtual-machine-inventory
+# Cluster API URL and certificate authority (PEM) stored in the AAP credential. Empty = this job's OpenShift API
+# credential (K8S_AUTH_HOST, K8S_AUTH_SSL_CA_CERT).
+openshift_automation_platform_virtual_machine_inventory_api_url: ""
+openshift_automation_platform_virtual_machine_inventory_api_ca_certificate: ""
+# Whether the inventory sync verifies the cluster API certificate (credential input verify_ssl)
+openshift_automation_platform_virtual_machine_inventory_verify_ssl: true
+# true = rewrite the credential's token and certificate authority on every run (always reports a change)
+openshift_automation_platform_virtual_machine_inventory_update_secrets: false
+
+# --- TLS ---
+# Verify TLS certificates on this job's calls to the cluster API
+openshift_automation_platform_validate_certs: true
+
+# --- waits --- (for the service account token)
+openshift_automation_platform_wait_retries: 30
+openshift_automation_platform_wait_delay: 2
+...

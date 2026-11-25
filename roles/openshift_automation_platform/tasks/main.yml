@@ -1,0 +1,27 @@
+---
+# Applies configs/common plus the areas in site_configuration_areas with infra.aap_configuration.dispatch (Red Hat
+# validated), after adding the optional OpenShift virtual machines inventory to the objects to apply.
+# AAP authentication: aap_hostname / aap_token / aap_validate_certs (Red Hat Ansible Automation Platform credential).
+# Cluster authentication (virtual machines inventory only): K8S_AUTH_* environment variables (OpenShift API credential).
+# Docs: AAP 2.7 administer guide, "Source an inventory from OpenShift Virtualization" and "OpenShift or Kubernetes API
+# Bearer Token credential type"; kubevirt.core.kubevirt inventory plugin.
+
+- name: Main | Load configs/common and the selected areas
+  ansible.builtin.include_tasks:
+    file: load_configuration.yml
+    apply:
+      tags: [always]
+  tags: [always]
+
+- name: Main | Add the OpenShift virtual machines inventory
+  ansible.builtin.include_tasks:
+    file: virtual_machine_inventory.yml
+    apply:
+      tags: [always]
+  when: openshift_automation_platform_virtual_machine_inventory | bool
+  tags: [always]
+
+- name: Main | Apply the configuration to Ansible Automation Platform
+  ansible.builtin.import_role:
+    name: infra.aap_configuration.dispatch
+...

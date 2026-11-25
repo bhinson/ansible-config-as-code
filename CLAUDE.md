@@ -31,8 +31,11 @@ certified/validated, private hub, Galaxy, in that order), so the repo holds no g
 - Exported AAP secrets appear as `{{ vaulted_* }}` placeholders; their values go in a git-ignored/vaulted vars file.
 
 ## Layout
-- `playbooks/` – entry points (`openshift_*` for OpenShift, `configure_automation_platform.yml` / `export_automation_platform.yml` for AAP).
-- `roles/<platform>_<thing>/` – our roles: `openshift_automation_orchestrator` (install Automation Orchestrator (AO)), `automation_orchestrator_configuration` (connect AO to AAP),
+- `playbooks/` – entry points (`openshift_*` for OpenShift and for applying the AAP configuration, `export_automation_platform.yml`;
+  `configure_automation_platform.yml` is only an alias of `openshift_automation_platform.yml`).
+- `roles/<platform>_<thing>/` – our roles: `openshift_automation_platform` (applies `configs/` with infra.aap_configuration.dispatch,
+  optional OpenShift Virtualization inventory with a read-only service account; job template "Configuration as code |
+  Apply Ansible Automation Platform configuration"), `openshift_automation_orchestrator` (install Automation Orchestrator (AO)), `automation_orchestrator_configuration` (connect AO to AAP),
   `automation_orchestrator_llm_integration` (connect AO to a large language model (LLM) provider),
   `automation_orchestrator_cve_remediation` (AO CVE remediation workflow; its job templates run
   `playbooks/cve_remediation_assess.yml` / `cve_remediation_apply.yml` on managed hosts),
@@ -46,8 +49,8 @@ certified/validated, private hub, Galaxy, in that order), so the repo holds no g
   comma-separated lists and `"true"`/`"false"`, and treat `""` as unset (`default(x, true)`).
 - `configs/` – AAP objects as data for `infra.aap_configuration.dispatch`, by **area**: `common/` (always), one folder per
   use case, and opt-in `platform_management/` (AAP itself; never removed by cleanup). Each area defines
-  `<dispatch variable>__<area>`; `common/aggregate.yml` merges the loaded areas; `playbooks/tasks/load_configuration.yml`
-  loads `common` + `site_configuration_areas`. A new use case = a new folder (and a line in aggregate.yml for any new
+  `<dispatch variable>__<area>`; `common/aggregate.yml` merges the loaded areas; `roles/openshift_automation_platform/tasks/load_configuration.yml`
+  (initialize/cleanup use it through `include_role` `tasks_from`, `public: true`) loads `common` + `site_configuration_areas`. A new use case = a new folder (and a line in aggregate.yml for any new
   dispatch variable). See `configs/README.md`.
 - `inventory/` – localhost-only inventory; connection vars read from the environment.
 
@@ -94,9 +97,12 @@ certified/validated, private hub, Galaxy, in that order), so the repo holds no g
   cleanup's lookup list too.
 - **In AAP (normal):** project = this repo; job template per playbook (`playbooks/*.yml`, inventory with localhost);
   credentials: **"OpenShift API (configuration as code)"** (custom type defined in `configs/common/credential_types.yml`) for `openshift_*`
-  playbooks, "Red Hat Ansible Automation Platform" for `configure_automation_platform.yml` / `export_automation_platform.yml`.
-  - The managed "OpenShift or Kubernetes API Bearer Token" type has **no injectors** (container groups only), so it
-    gives playbooks nothing, hence the custom type with host, token and CA.
+  playbooks, "Red Hat Ansible Automation Platform" for `openshift_automation_platform.yml` (plus the OpenShift API credential for its
+  optional virtual machines inventory) / `export_automation_platform.yml`.
+  - The localhost inventory's host is defined in `configs/common/inventories.yml` (no repo inventory sync); host variables
+    holding a literal `{{` use the dispatch role's escape `{  {`. `inventory/hosts.yml` is for local runs only.
+  - The managed "OpenShift or Kubernetes API Bearer Token" type has **no injectors** (container groups and the
+    OpenShift Virtualization inventory source only), so it gives playbooks nothing, hence the custom type with host, token and CA.
   - The AAP credential injects `aap_hostname`/`aap_token`/`aap_validate_certs` as extra vars plus `AAP_*` environment variables.
   - The EE must provide the collections' Python deps (`kubernetes` for kubernetes.core); check the
     EE before the first run.

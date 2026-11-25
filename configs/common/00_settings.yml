@@ -5,7 +5,7 @@ aap_configuration_dispatcher_exclude_roles: []
 
 # ---------------------------------------------------------------------------------------------------------------
 # SITE SETTINGS: example values (the project URL is this repo). Put your real values in a vars file OUTSIDE this repo and pass it when applying:
-#   ansible-playbook playbooks/configure_automation_platform.yml -e @/path/to/site.yml
+#   ansible-playbook playbooks/openshift_automation_platform.yml -e @/path/to/site.yml
 # Extra vars override these defaults. They feed the Ansible Automation Platform (AAP) objects in this folder
 # (project URL, job template survey defaults, inventory hosts). See README.md "Site settings" for each one.
 # ---------------------------------------------------------------------------------------------------------------
@@ -70,6 +70,11 @@ site_automation_developer_hub_super_users: ""
 # MCP server survey default (automation_mcp): "true" lets AI agents launch jobs and change AAP (still limited by each
 # user's permissions); "false" = read-only tools.
 site_automation_mcp_allow_write_operations: "false"
+# Survey defaults of the configure job template (role openshift_automation_platform): "true" creates the inventory
+# "Configuration as code - OpenShift virtual machines" (OpenShift Virtualization source, update on launch), and the
+# namespaces it reads (comma-separated; empty = every namespace).
+site_openshift_virtual_machine_inventory: "false"
+site_openshift_virtual_machine_inventory_namespaces: ""
 
 # --- platform_management area (only used when that area is selected) ---
 # Private automation hub base URL (usually the AAP gateway URL); its repositories are served under /api/galaxy/content/.

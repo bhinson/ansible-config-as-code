@@ -1,0 +1,13 @@
+---
+# Apply Ansible Automation Platform (AAP) configuration as code (role openshift_automation_platform): configs/common plus
+# the areas in site_configuration_areas (see configs/README.md) through infra.aap_configuration.dispatch, and optionally
+# the inventory "Configuration as code - OpenShift virtual machines" (AAP's OpenShift Virtualization inventory source).
+# In AAP: job template "Configuration as code | Apply Ansible Automation Platform configuration" (site values as extra
+# vars, survey for the virtual machines inventory; credentials: Ansible Automation Platform + OpenShift API).
+#   Local test: source scripts/env.sh && ansible-playbook playbooks/openshift_automation_platform.yml -e @site.yml --check
+- name: Configure Ansible Automation Platform from code
+  hosts: localhost
+  gather_facts: false
+  roles:
+    - role: openshift_automation_platform
+...

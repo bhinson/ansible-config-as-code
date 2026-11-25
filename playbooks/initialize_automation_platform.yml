@@ -8,7 +8,7 @@
 #   3. project "Configuration as code - ansible-config-as-code" (site_project_scm_url), waits for its first sync
 #   4. inventory "Configuration as code - localhost" with host localhost
 #   5. job template "Configuration as code | Apply Ansible Automation Platform configuration"
-#      (playbook configure_automation_platform.yml, the AAP credential, the site_* values as extra vars;
+#      (playbook openshift_automation_platform.yml, the AAP credential, the site_* values as extra vars;
 #      the extra vars are refreshed on every run)
 # then launches that job template and waits (initialize_automation_platform_launch). AAP installs the certified collections
 # during project sync with the organization's console.redhat.com credential, and its run creates everything else in
@@ -46,7 +46,10 @@
       Authorization: "Bearer {{ initialize_automation_platform_token }}"
   tasks:
     - name: Initialize | Load configs/common and the selected areas (site values from -e @site.yml override the examples)
-      ansible.builtin.include_tasks: tasks/load_configuration.yml
+      ansible.builtin.include_role:
+        name: openshift_automation_platform
+        tasks_from: load_configuration.yml
+        public: true
 
     - name: Initialize | Collect the names and site values to use
       ansible.builtin.set_fact:
@@ -280,7 +283,8 @@
         body_format: json
         body:
           name: localhost
-          variables: "{{ {'ansible_connection': 'local'} | to_json }}"
+          # same variables as the localhost host in configs/common/inventories.yml
+          variables: !unsafe '{"ansible_connection": "local", "ansible_python_interpreter": "{{ ansible_playbook_python }}"}'
         validate_certs: "{{ initialize_automation_platform_validate_certs | bool }}"
         status_code: 201
       when: __initialize_inventory_create.json.id is defined
@@ -305,7 +309,7 @@
         body: >-
           {{ {'name': initialize_automation_platform_job_template,
               'description': 'Apply configs/ from this repo (common and the selected areas) with infra.aap_configuration.dispatch',
-              'project': __initialize_project_id | int, 'playbook': 'playbooks/configure_automation_platform.yml',
+              'project': __initialize_project_id | int, 'playbook': 'playbooks/openshift_automation_platform.yml',
               'inventory': (__initialize_inventory_create.json.id if __initialize_inventory_create is changed
                             else __initialize_object_lookups.results[1].json.results[0].id) | int,
               'execution_environment': __initialize_execution_environment_id | int,

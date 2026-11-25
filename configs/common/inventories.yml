@@ -1,16 +1,25 @@
 ---
-# Localhost inventory for API-driven configuration as code jobs, sourced from this repo's inventory/hosts.yml.
+# Localhost inventory for API-driven configuration as code jobs. The host is defined here (no inventory sync from the
+# repo, so jobs don't wait for one). The optional "Configuration as code - OpenShift virtual machines" inventory is added
+# by the role openshift_automation_platform (survey of the configure job template).
 controller_inventories__common:
   - name: Configuration as code - localhost
     description: Control-node-only inventory for configuration-as-code jobs
     organization: "{{ site_organization }}"
 
+controller_hosts__common:
+  - name: localhost
+    inventory: Configuration as code - localhost
+    description: The execution environment itself (local connection, the Python that runs Ansible)
+    enabled: true
+    # "{  {" is the dispatch role's escape for a literal "{{" that AAP keeps for job time
+    variables:
+      ansible_connection: local
+      ansible_python_interpreter: "{  { ansible_playbook_python }}"
+
+# Removes the earlier source that synced this inventory from the repo's inventory/hosts.yml (no-op once it's gone)
 controller_inventory_sources__common:
   - name: Configuration as code - localhost (repo)
     inventory: Configuration as code - localhost
-    source: scm
-    source_project: Configuration as code - ansible-config-as-code
-    source_path: inventory/hosts.yml
-    overwrite: true
-    update_on_launch: true
+    state: absent
 ...
