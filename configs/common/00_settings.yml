@@ -29,6 +29,7 @@ site_configuration_areas:
   - automation_developer_hub
   - automation_mcp
   - automation_intelligent_assistant
+  - automation_x2ansible
 
 # AAP organization that owns every object below (AAP's built-in "Default" works).
 site_organization: Default
@@ -74,6 +75,11 @@ site_automation_portal_collection_repositories: ""
 site_developer_hub_operator_channel: fast
 site_automation_developer_hub_admin_users: ""
 site_automation_developer_hub_super_users: ""
+# x2ansible survey defaults (automation_x2ansible): GitHub OAuth app client ID (sign-in; the secret stays a survey
+# password), OpenAI-compatible LLM base URL (with /v1) and LiteLLM model name (for example openai/<model>).
+site_automation_x2ansible_github_client_id: ""
+site_automation_x2ansible_llm_url: ""
+site_automation_x2ansible_llm_model: ""
 # Resource requests profile (survey default of the install job templates for the portal, Developer Hub, intelligent
 # assistant and Automation Orchestrator): "default" = operator requests; "small" = reserve little CPU on small or
 # single-node clusters (limits unchanged).

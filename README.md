@@ -33,6 +33,8 @@ Red Hat certified collections first, Red Hat validated content second, and commu
 | `roles/openshift_automation_mcp/` | Deploy and configure the MCP server through the AAP operator (generic) |
 | `playbooks/openshift_automation_intelligent_assistant.yml` | Automation intelligent assistant (Lightspeed chat) on an operator-based AAP on OpenShift, LLM settings from the survey |
 | `roles/openshift_automation_intelligent_assistant/` | Chatbot configuration Secret + `spec.lightspeed` through the AAP operator (generic) |
+| `playbooks/openshift_automation_x2ansible.yml` | x2ansible (Chef, Puppet and Salt to Ansible with an LLM): x2a plug-ins for Red Hat Developer Hub + convertor Jobs, publishing to AAP |
+| `roles/openshift_automation_x2ansible/` | RHDH operator (shared role), Backstage instance with the community x2a plug-ins, Job RBAC, dedicated AAP user (generic) |
 | `playbooks/openshift_automation_developer_hub.yml` | Red Hat Developer Hub with the Ansible plug-ins on OpenShift (AAP sign-in, plug-in token) |
 | `roles/openshift_automation_developer_hub/` | Deploy and connect Developer Hub with the Ansible plug-ins (generic) |
 | `roles/openshift_automation_developer_hub_operator/` | Install or adopt the Red Hat Developer Hub operator (shared by the Developer Hub and portal roles) |

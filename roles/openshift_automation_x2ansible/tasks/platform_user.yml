@@ -1,0 +1,101 @@
+---
+# Dedicated Ansible Automation Platform (AAP) user for publishing: "Organization Project Admin" in one organization, with
+# an API token (write scope). The password and token are kept in the Secret <name>-platform-user. AAP shows a token value
+# only when it creates it, so a token is created only when the stored one is missing or no longer works.
+
+- name: Platform user | Read the stored password and token
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Secret
+    namespace: "{{ openshift_automation_x2ansible_namespace }}"
+    name: "{{ openshift_automation_x2ansible_name }}-platform-user"
+  register: __x2ansible_user_secret
+  no_log: true
+
+- name: Platform user | Decode the stored values (new password when there is none)
+  ansible.builtin.set_fact:
+    __x2ansible_user_password: >-
+      {{ (__x2ansible_user_secret.resources[0].data.password | b64decode) if __x2ansible_user_secret.resources | length > 0
+         else lookup('ansible.builtin.password', '/dev/null', length=32, chars=['ascii_letters', 'digits']) }}
+    __x2ansible_user_token: >-
+      {{ (__x2ansible_user_secret.resources[0].data.token | default('') | b64decode) if __x2ansible_user_secret.resources | length > 0
+         else '' }}
+    __x2ansible_user_new_password: "{{ __x2ansible_user_secret.resources | length == 0 }}"
+  no_log: true
+
+- name: Platform user | Create the user and its role (as the job's AAP user)
+  module_defaults:
+    group/ansible.platform.gateway:
+      aap_hostname: "{{ __x2ansible_platform_url }}"
+      aap_token: "{{ __x2ansible_platform_token }}"
+      aap_validate_certs: "{{ openshift_automation_x2ansible_validate_certs | bool }}"
+      aap_ca_bundle: "{{ __x2ansible_ca_file.path }}"
+  block:
+    - name: Platform user | Create the user
+      ansible.platform.user:
+        username: "{{ openshift_automation_x2ansible_platform_username }}"
+        password: "{{ __x2ansible_user_password }}"
+        # Send the password only when it is new (otherwise every run would report a change)
+        update_secrets: "{{ __x2ansible_user_new_password | bool }}"
+        first_name: x2ansible
+        last_name: publisher
+        state: present
+      no_log: true
+
+    - name: Platform user | Allow the user to manage projects in the organization
+      ansible.platform.role_user_assignment:
+        role_definition: Organization Project Admin
+        object_ids: ["{{ openshift_automation_x2ansible_platform_organization }}"]
+        user: "{{ openshift_automation_x2ansible_platform_username }}"
+        state: present
+
+- name: Platform user | Check the stored token
+  ansible.builtin.uri:
+    url: "{{ __x2ansible_platform_url }}/api/gateway/v1/me/"
+    headers:
+      Authorization: "Bearer {{ __x2ansible_user_token }}"
+    ca_path: "{{ __x2ansible_ca_file.path }}"
+    validate_certs: "{{ openshift_automation_x2ansible_validate_certs | bool }}"
+    status_code: [200, 401]
+  register: __x2ansible_token_check
+  when: __x2ansible_user_token | length > 0
+  no_log: true
+
+- name: Platform user | Create a token for the user (signed in as the user)
+  ansible.platform.token:
+    description: x2ansible publishing ({{ openshift_automation_x2ansible_namespace }}/{{ openshift_automation_x2ansible_name }})
+    scope: write
+    state: present
+    aap_hostname: "{{ __x2ansible_platform_url }}"
+    aap_username: "{{ openshift_automation_x2ansible_platform_username }}"
+    aap_password: "{{ __x2ansible_user_password }}"
+    aap_validate_certs: "{{ openshift_automation_x2ansible_validate_certs | bool }}"
+    aap_ca_bundle: "{{ __x2ansible_ca_file.path }}"
+  register: __x2ansible_token_create
+  when: __x2ansible_user_token | length == 0 or __x2ansible_token_check.status | default(0) != 200
+  no_log: true
+
+- name: Platform user | Keep the token
+  ansible.builtin.set_fact:
+    __x2ansible_user_token: >-
+      {{ __x2ansible_token_create.ansible_facts.aap_token.token
+         if (__x2ansible_token_create.ansible_facts.aap_token.token | default('')) | length > 0 else __x2ansible_user_token }}
+  no_log: true
+
+# A password that never got stored is replaced on the next run (update_secrets is true for a new password)
+- name: Platform user | Store the password and token
+  redhat.openshift.k8s:  # noqa: fqcn[canonical]
+    state: present
+    apply: true
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: "{{ openshift_automation_x2ansible_name }}-platform-user"
+        namespace: "{{ openshift_automation_x2ansible_namespace }}"
+      stringData:
+        username: "{{ openshift_automation_x2ansible_platform_username }}"
+        password: "{{ __x2ansible_user_password }}"
+        token: "{{ __x2ansible_user_token }}"
+  no_log: true
+...

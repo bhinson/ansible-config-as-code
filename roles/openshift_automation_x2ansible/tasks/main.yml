@@ -1,0 +1,58 @@
+---
+# Cluster objects: redhat.openshift (apply) and kubernetes.core (lookups). AAP user, role and token: ansible.platform
+# (all Red Hat certified). Cluster authentication: K8S_AUTH_* environment variables (job credential).
+# AAP: aap_hostname / aap_token (Red Hat Ansible Automation Platform credential).
+
+- name: Main | Install x2ansible
+  module_defaults:
+    group/kubernetes.core.k8s:
+      validate_certs: "{{ openshift_automation_x2ansible_validate_certs | bool }}"
+    redhat.openshift.k8s:
+      validate_certs: "{{ openshift_automation_x2ansible_validate_certs | bool }}"
+  block:
+    - name: Main | Check inputs and discover settings
+      ansible.builtin.include_tasks: discover.yml
+
+    - name: Main | Install or adopt the Red Hat Developer Hub operator
+      ansible.builtin.include_role:
+        name: openshift_automation_developer_hub_operator
+      vars:
+        openshift_automation_developer_hub_operator_validate_certs: "{{ openshift_automation_x2ansible_validate_certs }}"
+      when: openshift_automation_x2ansible_manage_operator | bool
+
+    - name: Main | Create the namespace, service account and role for the convertor Jobs
+      redhat.openshift.k8s:  # noqa: fqcn[canonical]
+        state: present
+        apply: true
+        definition: "{{ lookup('ansible.builtin.template', 'rbac.yml.j2') | from_yaml_all | list }}"
+
+    - name: Main | Create the Ansible Automation Platform user and token
+      ansible.builtin.include_tasks: platform_user.yml
+      when: openshift_automation_x2ansible_publish_to_platform | bool
+
+    - name: Main | Create the Secret and the certificate authority bundle
+      ansible.builtin.include_tasks: credentials.yml
+
+    - name: Main | Deploy x2ansible
+      ansible.builtin.include_tasks: deploy.yml
+
+    - name: Main | Report
+      ansible.builtin.debug:
+        msg:
+          - "x2ansible is ready: https://{{ __x2ansible_route_host }}"
+          - >-
+            {{ 'Sign-in: GitHub OAuth app' if __x2ansible_github_sign_in
+               else 'Sign-in: guest (no GitHub OAuth app set; Git steps will not work)' }}. GitHub OAuth app settings:
+            Homepage URL https://{{ __x2ansible_route_host }}, Authorization callback URL
+            https://{{ __x2ansible_route_host }}/api/auth/github/handler/frame
+          - >-
+            {{ ('Publishing to Ansible Automation Platform organization ' ~ openshift_automation_x2ansible_platform_organization
+                ~ ' as user ' ~ openshift_automation_x2ansible_platform_username)
+               if openshift_automation_x2ansible_publish_to_platform | bool else 'Publishing to Ansible Automation Platform: off' }}
+  always:
+    - name: Main | Remove the temporary certificate authority file
+      ansible.builtin.file:
+        path: "{{ __x2ansible_ca_file.path }}"
+        state: absent
+      when: __x2ansible_ca_file.path is defined
+...

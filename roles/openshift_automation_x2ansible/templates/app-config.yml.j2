@@ -1,0 +1,78 @@
+---
+# x2ansible app-config (upstream deploy/app.yaml and the x2a-backend README). ${VARIABLES} come from the
+# <name>-secrets Secret. The RHDH operator sets app.baseUrl, backend.baseUrl and backend.cors.origin from the route.
+app:
+  title: x2ansible
+integrations:
+  github:
+    - host: github.com
+auth:
+  environment: production
+  providers:
+{% if __x2ansible_github_sign_in %}
+    github:
+      production:
+        clientId: ${AUTH_GITHUB_CLIENT_ID}
+        clientSecret: ${AUTH_GITHUB_CLIENT_SECRET}
+        signIn:
+          resolvers:
+            - resolver: usernameMatchingUserEntityName
+              dangerouslyAllowSignInWithoutUserInCatalog: true
+{% else %}
+    guest:
+      dangerouslyAllowOutsideDevelopment: true
+{% endif %}
+signInPage: {{ 'github' if __x2ansible_github_sign_in else 'guest' }}
+backend:
+  reading:
+    allow:
+      - host: raw.githubusercontent.com
+catalog:
+  locations:
+    # "Create a conversion project" software template from the scaffolder module
+    - type: file
+      target: /opt/app-root/src/dynamic-plugins-root/red-hat-developer-hub-backstage-plugin-x2a-scaffolder-module/templates/conversion-project-template.yaml
+      rules:
+        - allow: [Template]
+x2a:
+  # The backend's in-cluster Service; the convertor Jobs report their results here
+  callbackBaseUrl: http://backstage-{{ openshift_automation_x2ansible_name }}.{{ openshift_automation_x2ansible_namespace }}.svc.cluster.local/api/x2a
+  kubernetes:
+    namespace: {{ openshift_automation_x2ansible_namespace }}
+    image: {{ openshift_automation_x2ansible_convertor_image }}
+    imageTag: {{ openshift_automation_x2ansible_convertor_image_tag | string | to_json }}
+    ttlSecondsAfterFinished: {{ openshift_automation_x2ansible_job_ttl_seconds | int }}
+    resources: {{ openshift_automation_x2ansible_resources['small' if __x2ansible_small else 'default'].job | to_json }}
+    # Every Job trusts the certificate authority bundle (the convertor reads AAP_CA_BUNDLE for its AAP calls)
+    deploymentPatch:
+      spec:
+        template:
+          spec:
+            containers:
+              - name: x2a
+                env:
+                  - name: AAP_CA_BUNDLE
+                    value: /etc/pki/tls/custom-ca/ca-bundle.crt
+                volumeMounts:
+                  - name: custom-ca-bundle
+                    mountPath: /etc/pki/tls/custom-ca
+                    readOnly: true
+            volumes:
+              - name: custom-ca-bundle
+                configMap:
+                  name: {{ openshift_automation_x2ansible_name }}-ca-bundle
+  credentials:
+    # Passed to each Job as environment variables (LiteLLM reads OPENAI_API_BASE / OPENAI_API_KEY)
+    llm:
+      LLM_MODEL: ${LLM_MODEL}
+      OPENAI_API_BASE: ${OPENAI_API_BASE}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      MAX_TOKENS: {{ openshift_automation_x2ansible_llm_max_tokens | string | to_json }}
+      SUMMARY_CONTEXT_SIZE: {{ openshift_automation_x2ansible_llm_summary_context_size | to_json }}
+{% if openshift_automation_x2ansible_publish_to_platform | bool %}
+    aap:
+      url: ${AAP_URL}
+      orgName: ${AAP_ORG_NAME}
+      oauthToken: ${AAP_OAUTH_TOKEN}
+      skipSSLVerification: false
+{% endif %}

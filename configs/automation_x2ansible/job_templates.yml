@@ -1,0 +1,111 @@
+---
+# Area automation_x2ansible: x2ansible (Chef, Puppet and Salt to Ansible migration with a large language model (LLM))
+# on OpenShift: x2a plug-ins for Red Hat Developer Hub plus convertor Jobs, publishing to Ansible Automation Platform.
+# Shares the Red Hat Developer Hub operator with automation_portal and automation_developer_hub.
+controller_templates__automation_x2ansible:
+  - name: x2ansible | Install on OpenShift
+    description: >-
+      Deploy x2ansible (community x2a plug-ins for Red Hat Developer Hub and the x2a-convertor) with GitHub sign-in, an
+      LLM provider and a dedicated Ansible Automation Platform user for publishing (role openshift_automation_x2ansible)
+    organization: "{{ site_organization }}"
+    project: Configuration as code - ansible-config-as-code
+    playbook: playbooks/openshift_automation_x2ansible.yml
+    inventory: Configuration as code - localhost
+    execution_environment: "{{ site_execution_environment }}"
+    credentials:
+      - Configuration as code - OpenShift API
+      - Configuration as code - Ansible Automation Platform
+    survey_enabled: true
+    survey_spec:
+      name: x2ansible install
+      description: Inputs for openshift_automation_x2ansible (the Ansible Automation Platform URL and certificate authority are discovered when empty)
+      spec:
+        - question_name: Namespace
+          variable: openshift_automation_x2ansible_namespace
+          type: text
+          required: true
+          default: x2ansible
+        - question_name: Route hostname
+          question_description: Empty = the default, backstage-<name>-<namespace>.<apps domain>
+          variable: openshift_automation_x2ansible_route_host
+          type: text
+          required: false
+          default: ""
+        - question_name: GitHub OAuth app client ID
+          question_description: >-
+            Users sign in with GitHub and x2ansible uses their token for the source and target repositories. Callback URL:
+            <x2ansible URL>/api/auth/github/handler/frame (the job output shows it)
+          variable: openshift_automation_x2ansible_github_client_id
+          type: text
+          required: false
+          default: "{{ site_automation_x2ansible_github_client_id }}"
+        - question_name: GitHub OAuth app client secret
+          question_description: Empty = keep the stored one
+          variable: openshift_automation_x2ansible_github_client_secret
+          type: password
+          required: false
+        - question_name: Allow guest sign-in without a GitHub OAuth app
+          question_description: Anyone who reaches the URL can use it, and Git steps won't work; for a first look only
+          variable: openshift_automation_x2ansible_allow_guest_sign_in
+          type: multiplechoice
+          choices: ["false", "true"]
+          required: true
+          default: "false"
+        - question_name: LLM base URL
+          question_description: OpenAI-compatible API base URL including /v1, for example https://llm.example.com/v1
+          variable: openshift_automation_x2ansible_llm_url
+          type: text
+          required: true
+          default: "{{ site_automation_x2ansible_llm_url }}"
+        - question_name: LLM model
+          question_description: LiteLLM model name, for example openai/<model> (needs tool calling)
+          variable: openshift_automation_x2ansible_llm_model
+          type: text
+          required: true
+          default: "{{ site_automation_x2ansible_llm_model }}"
+        - question_name: LLM API token
+          question_description: Empty = keep the stored one (required the first time)
+          variable: openshift_automation_x2ansible_llm_token
+          type: password
+          required: false
+        - question_name: Publish to Ansible Automation Platform
+          question_description: Migrated projects become Ansible Automation Platform projects, created by a dedicated user
+          variable: openshift_automation_x2ansible_publish_to_platform
+          type: multiplechoice
+          choices: ["true", "false"]
+          required: true
+          default: "true"
+        - question_name: Ansible Automation Platform organization
+          question_description: Organization for the published projects; the dedicated user becomes its project admin
+          variable: openshift_automation_x2ansible_platform_organization
+          type: text
+          required: true
+          default: "{{ site_organization }}"
+        - question_name: Ansible Automation Platform username
+          variable: openshift_automation_x2ansible_platform_username
+          type: text
+          required: true
+          default: x2ansible
+        - question_name: Verify TLS certificates from this job
+          question_description: The job's calls to the cluster API and Ansible Automation Platform
+          variable: openshift_automation_x2ansible_validate_certs
+          type: multiplechoice
+          choices: ["true", "false"]
+          required: true
+          default: "true"
+        - question_name: Certificate authority bundle (PEM)
+          question_description: CA for Ansible Automation Platform; empty = OpenShift ingress certificate authority
+          variable: openshift_automation_x2ansible_ca_certificate
+          type: textarea
+          required: false
+          default: ""
+        - question_name: Resource requests
+          question_description: >-
+            default = the operator's CPU and memory requests; small = reserve little CPU (for small or single-node
+            clusters; limits unchanged)
+          variable: openshift_automation_x2ansible_resource_profile
+          type: multiplechoice
+          choices: [default, small]
+          required: true
+          default: "{{ site_resource_profile }}"
+...

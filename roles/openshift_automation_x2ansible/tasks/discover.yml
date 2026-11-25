@@ -1,0 +1,92 @@
+---
+- name: Discover | Resolve the inputs
+  ansible.builtin.set_fact:
+    __x2ansible_small: "{{ (openshift_automation_x2ansible_resource_profile | default('default', true)) == 'small' }}"
+    __x2ansible_github_sign_in: "{{ openshift_automation_x2ansible_github_client_id | default('', true) | length > 0 }}"
+    __x2ansible_platform_url: >-
+      {{ ((openshift_automation_x2ansible_platform_url | default('', true) or aap_hostname | default(''))
+          | regex_replace('^(?!https?://)(.+)$', 'https://\1')) | regex_replace('/+$', '') }}
+    __x2ansible_platform_token: >-
+      {{ openshift_automation_x2ansible_platform_token | default('', true)
+         or ((aap_token.token if aap_token is mapping else aap_token) | default('')) }}
+  no_log: true
+
+# Password survey answers are empty on reruns: keep the values stored in the x2ansible Secret then
+- name: Discover | Read the stored x2ansible Secret
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Secret
+    namespace: "{{ openshift_automation_x2ansible_namespace }}"
+    name: "{{ openshift_automation_x2ansible_name }}-secrets"
+  register: __x2ansible_stored_secret
+  no_log: true
+
+- name: Discover | Use the stored LLM token and GitHub client secret when none is given
+  ansible.builtin.set_fact:
+    __x2ansible_llm_token: >-
+      {{ openshift_automation_x2ansible_llm_token | default('', true)
+         or (__x2ansible_stored_secret.resources[0].data.OPENAI_API_KEY | default('') | b64decode
+             if __x2ansible_stored_secret.resources | length > 0 else '') }}
+    __x2ansible_github_client_secret: >-
+      {{ openshift_automation_x2ansible_github_client_secret | default('', true)
+         or (__x2ansible_stored_secret.resources[0].data.AUTH_GITHUB_CLIENT_SECRET | default('') | b64decode
+             if __x2ansible_stored_secret.resources | length > 0 else '') }}
+  no_log: true
+
+- name: Discover | Check required inputs
+  ansible.builtin.assert:
+    that:
+      - openshift_automation_x2ansible_llm_url is match('https?://.+')
+      - __x2ansible_llm_token | length > 0
+      - openshift_automation_x2ansible_llm_model | default('', true) | length > 0
+      - __x2ansible_github_sign_in or (openshift_automation_x2ansible_allow_guest_sign_in | bool)
+      - not (__x2ansible_github_sign_in and __x2ansible_github_client_secret | length == 0)
+      - >-
+        not (openshift_automation_x2ansible_publish_to_platform | bool)
+        or (__x2ansible_platform_url is match('https?://.+') and __x2ansible_platform_token | length > 0)
+    fail_msg: >-
+      Need the LLM URL, token (the first time) and model; a GitHub OAuth app client ID and secret (or allow guest sign-in); and, to publish
+      to Ansible Automation Platform, its URL and a token (Red Hat Ansible Automation Platform credential).
+    quiet: true
+
+- name: Discover | Read the cluster ingress domain
+  kubernetes.core.k8s_info:
+    api_version: config.openshift.io/v1
+    kind: Ingress
+    name: cluster
+  register: __x2ansible_ingress_config
+
+- name: Discover | Set the route hostname
+  ansible.builtin.set_fact:
+    __x2ansible_route_host: >-
+      {{ openshift_automation_x2ansible_route_host | default('', true)
+         or ('backstage-' ~ openshift_automation_x2ansible_name ~ '-' ~ openshift_automation_x2ansible_namespace ~ '.'
+             ~ __x2ansible_ingress_config.resources[0].spec.domain) }}
+
+- name: Discover | Read the OpenShift ingress certificate authority
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: ConfigMap
+    namespace: openshift-config-managed
+    name: default-ingress-cert
+  register: __x2ansible_ingress_ca
+  when: openshift_automation_x2ansible_ca_certificate | default('', true) | length == 0
+
+- name: Discover | Set the certificate authority for Ansible Automation Platform
+  ansible.builtin.set_fact:
+    __x2ansible_platform_ca: >-
+      {{ openshift_automation_x2ansible_ca_certificate | default('', true)
+         or __x2ansible_ingress_ca.resources[0].data['ca-bundle.crt'] }}
+
+- name: Discover | Create a temporary certificate authority file for the Ansible Automation Platform calls
+  ansible.builtin.tempfile:
+    state: file
+    suffix: .pem
+  register: __x2ansible_ca_file
+
+- name: Discover | Write the certificate authority file
+  ansible.builtin.copy:
+    content: "{{ __x2ansible_platform_ca }}"
+    dest: "{{ __x2ansible_ca_file.path }}"
+    mode: "0600"
+...

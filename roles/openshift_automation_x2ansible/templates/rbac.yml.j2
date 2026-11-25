@@ -1,0 +1,72 @@
+---
+# Namespace, service account and permissions for the x2a backend (upstream deploy/app.yaml). The backend runs as
+# x2a-sa and creates one Job per migration phase, plus a temporary Secret with the user's Git token for each Job.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ openshift_automation_x2ansible_namespace }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: x2a-sa
+  namespace: {{ openshift_automation_x2ansible_namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: x2a-role
+  namespace: {{ openshift_automation_x2ansible_namespace }}
+rules:
+  - apiGroups: [batch]
+    resources: [jobs]
+    verbs: [create, get, list, watch, delete]
+  - apiGroups: [""]
+    resources: [pods, pods/log]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [secrets, configmaps]
+    verbs: [create, get, update, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: x2a-rolebinding
+  namespace: {{ openshift_automation_x2ansible_namespace }}
+subjects:
+  - kind: ServiceAccount
+    name: x2a-sa
+    namespace: {{ openshift_automation_x2ansible_namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: x2a-role
+---
+# The plug-in's connection test lists pods in the "default" namespace (upstream note)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: x2a-list-pods-{{ openshift_automation_x2ansible_namespace }}
+  labels:
+    app.kubernetes.io/managed-by: ansible-config-as-code
+    app.kubernetes.io/part-of: x2ansible
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: x2a-list-pods-{{ openshift_automation_x2ansible_namespace }}
+  labels:
+    app.kubernetes.io/managed-by: ansible-config-as-code
+    app.kubernetes.io/part-of: x2ansible
+subjects:
+  - kind: ServiceAccount
+    name: x2a-sa
+    namespace: {{ openshift_automation_x2ansible_namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: x2a-list-pods-{{ openshift_automation_x2ansible_namespace }}

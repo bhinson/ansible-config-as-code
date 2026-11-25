@@ -29,7 +29,7 @@ controller_templates__automation_orchestrator_integration:
           variable: automation_orchestrator_configuration_integration_name
           type: text
           required: true
-          default: Ansible Automation Platform
+          default: "{{ site_automation_orchestrator_platform_integration_name }}"
         - question_name: Integration Ansible Automation Platform token
           question_description: >-
             Ansible Automation Platform OAuth token that Automation Orchestrator stores for health checks and discovery

@@ -1,0 +1,34 @@
+{% set __oci = 'oci://' ~ openshift_automation_x2ansible_plugins_image %}
+---
+# Dynamic plug-ins (upstream deploy/app.yaml without the optional MCP and OAuth client registration plug-ins): the x2a
+# frontend ("Conversion Hub" page), backend and scaffolder module, plus RHDH's bundled GitHub scaffolder module.
+includes:
+  - dynamic-plugins.default.yaml
+plugins:
+  - package: ./dynamic-plugins/dist/backstage-plugin-scaffolder-backend-module-github-dynamic
+    disabled: false
+  - package: "{{ __oci }}-x2a:{{ openshift_automation_x2ansible_plugins_tag }}"
+    disabled: false
+    pluginConfig:
+      dynamicPlugins:
+        frontend:
+          red-hat-developer-hub.backstage-plugin-x2a:
+            scaffolderFieldExtensions:
+              - importName: RepoAuthenticationExtension
+              - importName: RulesAcceptanceExtension
+            translationResources:
+              - importName: x2aPluginTranslations
+                ref: x2aPluginTranslationRef
+            appIcons:
+              - name: x2aIcon
+                importName: X2AIcon
+            dynamicRoutes:
+              - path: /x2a
+                importName: X2APage
+                menuItem:
+                  text: Conversion Hub
+                  icon: x2aIcon
+  - package: "{{ __oci }}-x2a-backend:{{ openshift_automation_x2ansible_plugins_tag }}"
+    disabled: false
+  - package: "{{ __oci }}-x2a-scaffolder-module:{{ openshift_automation_x2ansible_plugins_tag }}"
+    disabled: false

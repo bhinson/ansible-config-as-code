@@ -1,0 +1,65 @@
+---
+- name: Deploy | Render the configuration
+  ansible.builtin.set_fact:
+    __x2ansible_app_config: "{{ lookup('ansible.builtin.template', 'app-config.yml.j2') | from_yaml }}"
+    __x2ansible_dynamic_plugins: "{{ lookup('ansible.builtin.template', 'dynamic-plugins.yml.j2') | from_yaml }}"
+
+# Pod annotation with a checksum of the configuration, the Secret inputs and the CA bundle: a change rolls the pod
+# (the CA bundle is mounted through the deployment patch, which the operator doesn't watch).
+- name: Deploy | Compute the configuration checksum
+  ansible.builtin.set_fact:
+    __x2ansible_config_checksum: >-
+      {{ ((__x2ansible_app_config | to_json) ~ (__x2ansible_dynamic_plugins | to_json) ~ __x2ansible_platform_ca
+          ~ openshift_automation_x2ansible_github_client_id ~ __x2ansible_github_client_secret
+          ~ openshift_automation_x2ansible_llm_url ~ __x2ansible_llm_token ~ openshift_automation_x2ansible_llm_model
+          ~ (__x2ansible_user_token | default(''))) | hash('sha256') }}
+  no_log: true
+
+- name: Deploy | Apply the app-config and dynamic plug-in ConfigMaps
+  redhat.openshift.k8s:  # noqa: fqcn[canonical]
+    state: present
+    apply: true
+    definition:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: "{{ openshift_automation_x2ansible_name }}-{{ __x2ansible_config.suffix }}"
+        namespace: "{{ openshift_automation_x2ansible_namespace }}"
+      data: "{{ {__x2ansible_config.key: __x2ansible_config.content | to_nice_yaml(indent=2)} }}"
+  loop:
+    - {suffix: app-config, key: app-config.yaml, content: "{{ __x2ansible_app_config }}"}
+    - {suffix: dynamic-plugins, key: dynamic-plugins.yaml, content: "{{ __x2ansible_dynamic_plugins }}"}
+  loop_control:
+    loop_var: __x2ansible_config
+    label: "{{ __x2ansible_config.suffix }}"
+
+- name: Deploy | Apply the Backstage custom resource
+  redhat.openshift.k8s:  # noqa: fqcn[canonical]
+    state: present
+    apply: true
+    definition:
+      apiVersion: rhdh.redhat.com/v1alpha5
+      kind: Backstage
+      metadata:
+        name: "{{ openshift_automation_x2ansible_name }}"
+        namespace: "{{ openshift_automation_x2ansible_namespace }}"
+      spec: "{{ lookup('ansible.builtin.template', 'backstage.yml.j2') | from_yaml }}"
+
+- name: Deploy | Wait for the deployment to finish rolling out
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: "backstage-{{ openshift_automation_x2ansible_name }}"
+    namespace: "{{ openshift_automation_x2ansible_namespace }}"
+  register: __x2ansible_deployment
+  vars:
+    __deployment: "{{ __x2ansible_deployment.resources | first | default({}) }}"
+  until: >-
+    __deployment.status is defined and
+    (__deployment.status.observedGeneration | default(0)) >= __deployment.metadata.generation and
+    (__deployment.status.updatedReplicas | default(0)) == __deployment.spec.replicas and
+    (__deployment.status.availableReplicas | default(0)) == __deployment.spec.replicas and
+    (__deployment.status.replicas | default(0)) == __deployment.spec.replicas
+  retries: "{{ openshift_automation_x2ansible_wait_retries }}"
+  delay: "{{ openshift_automation_x2ansible_wait_delay }}"
+...

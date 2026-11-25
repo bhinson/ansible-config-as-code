@@ -1,0 +1,11 @@
+---
+# x2ansible on OpenShift: x2a plug-ins for Red Hat Developer Hub and convertor Jobs that migrate Chef, Puppet and Salt
+# code to Ansible. In AAP: job template "x2ansible | Install on OpenShift" (survey supplies inputs; credentials:
+# OpenShift API (configuration as code) + Red Hat Ansible Automation Platform).
+#   Local test: source scripts/env.sh && ansible-playbook playbooks/openshift_automation_x2ansible.yml -e @my-vars.yml
+- name: Deploy x2ansible on OpenShift
+  hosts: localhost
+  gather_facts: false
+  roles:
+    - role: openshift_automation_x2ansible
+...

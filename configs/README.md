@@ -13,6 +13,7 @@ AAP objects as data for `infra.aap_configuration.dispatch`, split into **areas**
 | `automation_developer_hub/` | if selected | job template "Developer Hub \| Install with the Ansible plug-ins on OpenShift" |
 | `automation_mcp/` | if selected | job template "MCP server \| Install on OpenShift" |
 | `automation_intelligent_assistant/` | if selected | job template "Intelligent assistant \| Enable on OpenShift" |
+| `automation_x2ansible/` | if selected | job template "x2ansible \| Install on OpenShift" |
 | `platform_management/` | opt-in | Galaxy credentials for the private automation hub mirrors and console.redhat.com, the organizations' Galaxy credential order, and the scheduled job "Automation hub \| Sync collection repositories" |
 
 `site_configuration_areas` selects the areas (default: the eight use-case areas). Each area defines its objects under
@@ -61,6 +62,7 @@ ansible-playbook playbooks/initialize_automation_platform.yml -e @/path/to/site.
 | `site_automation_developer_hub_admin_users` / `_super_users` | `""` | Developer Hub RBAC administrators / super users, `user:default/<AAP username>` (automation_developer_hub) |
 | `site_automation_platform_operator_channel` | `stable-2.7` | AAP operator Subscription channel (survey default of the configure job template; a different channel on an existing Subscription fails unless allowed in the survey, because it upgrades AAP) |
 | `site_openshift_virtual_machine_inventory` / `_namespaces` | `"false"` / `""` | survey defaults of the configure job template: create the inventory "Configuration as code - OpenShift virtual machines", and the namespaces it reads (empty = all) |
+| `site_automation_x2ansible_github_client_id` / `_llm_url` / `_llm_model` | `""` | x2ansible survey defaults: GitHub OAuth app client ID, LLM base URL and LiteLLM model name (automation_x2ansible); secrets stay survey passwords |
 | `site_resource_profile` | `default` | `small` = low CPU requests for the portal, Developer Hub, intelligent assistant and Automation Orchestrator (survey default of their install job templates; limits unchanged) |
 | `site_automation_mcp_allow_write_operations` | `"false"` | `"true"` = MCP server tools may change AAP (survey default; automation_mcp) |
 | `site_automation_intelligent_assistant_llm_provider_type` / `_llm_url` / `_llm_model` | `rhoai_vllm` / `""` / `""` | automation intelligent assistant LLM survey defaults (automation_intelligent_assistant); the token stays a survey password |

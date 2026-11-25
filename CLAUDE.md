@@ -45,7 +45,8 @@ certified/validated, private hub, Galaxy, in that order), so the repo holds no g
   shared `openshift_automation_developer_hub_operator` (installs or adopts the RHDH operator for both; included with
   `include_role`, not a job template of its own), `openshift_automation_mcp` (Model Context Protocol (MCP) server for AAP through `spec.mcp`
   of the AnsibleAutomationPlatform custom resource, optional OAuth application), `openshift_automation_intelligent_assistant`
-  (automation intelligent assistant: chatbot configuration Secret with a content-hash name + `spec.lightspeed`). One role per concern, each with
+  (automation intelligent assistant: chatbot configuration Secret with a content-hash name + `spec.lightspeed`),
+  `openshift_automation_x2ansible` (x2ansible: community x2a plug-ins for RHDH + convertor Jobs, dedicated AAP user for publishing). One role per concern, each with
   its own job template and survey.
 - User inputs: AAP job template **surveys** (`configs/<area>/job_templates.yml`). Survey answers are strings, so roles accept
   comma-separated lists and `"true"`/`"false"`, and treat `""` as unset (`default(x, true)`).
