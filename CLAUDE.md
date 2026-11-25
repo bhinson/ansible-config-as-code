@@ -92,6 +92,7 @@ certified/validated, private hub, Galaxy, in that order), so the repo holds no g
   REST API) creates the credential type, the two credentials, the project, the localhost inventory and the
   "Configuration as code | Apply Ansible Automation Platform configuration" job template, then launches it. Never assume
   certified collections on the CLI; AAP installs them during project sync. `--check` prints the plan and stops.
+  An API launch (`POST .../launch/`) does **not** fill in survey defaults: send them as `extra_vars` (initialize does).
 - **Teardown:** `playbooks/cleanup_automation_platform.yml` deletes every object named in `configs/common` and the selected
   areas, never `platform_management` (exact names, site organization only; job history kept;
   `cleanup_automation_platform_keep_common=true` removes only the selected areas). When adding an object type to `configs/`, add it to the
