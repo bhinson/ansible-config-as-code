@@ -370,13 +370,27 @@
         not in (__initialize_job_template_credentials.json.results | map(attribute='id') | list)
       changed_when: true
 
+    # an API launch doesn't fill in survey defaults: send them (the survey exists after the first configure run)
+    - name: Initialize | Read the configure job template's survey
+      ansible.builtin.uri:
+        url: "{{ __initialize_api }}/job_templates/{{ __initialize_job_template_id }}/survey_spec/"
+        headers: "{{ __initialize_headers }}"
+        validate_certs: "{{ initialize_automation_platform_validate_certs | bool }}"
+      register: __initialize_survey
+      check_mode: false
+      when: initialize_automation_platform_launch | bool
+
     - name: Initialize | Launch the configure job template
       ansible.builtin.uri:
         url: "{{ __initialize_api }}/job_templates/{{ __initialize_job_template_id }}/launch/"
         method: POST
         headers: "{{ __initialize_headers }}"
         body_format: json
-        body: {}
+        body: >-
+          {{ {'extra_vars': dict((__initialize_survey.json.spec | default([]) | selectattr('default', 'defined')
+                                   | map(attribute='variable') | list)
+                                  | zip(__initialize_survey.json.spec | default([]) | selectattr('default', 'defined')
+                                        | map(attribute='default') | list))} }}
         validate_certs: "{{ initialize_automation_platform_validate_certs | bool }}"
         status_code: 201
       register: __initialize_launch
