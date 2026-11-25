@@ -59,6 +59,13 @@ operator can drop them on upgrade, so the role re-applies them every run; re-che
 - **Sign-out "This client does not have this redirect uri registered"** (at `<AAP>/o/logout/`): AO sends
   `post_logout_redirect_uri=<AO URL>` without a trailing slash, but the docs register `<AO URL>/`, and AAP compares
   exactly. The role registers both and patches existing applications; the gateway proxy log shows the URI AO sent.
+- **Sign-out shows AAP "Confirm Logout requested by Automation Orchestrator"; Cancel shows an error.** With
+  RP-initiated logout on, AO sends `id_token_hint`, but the gateway's django-oauth-toolkit skips the prompt only if
+  the token's user equals the user signed in to the gateway in that browser. Once the gateway session expired
+  (`SESSION_COOKIE_AGE`, 900 s by default; `GET /api/gateway/v1/settings/all/`) there is nobody to match, so it always
+  prompts; Cancel raises `LogoutDenied`. No gateway setting removes the prompt (`OIDC_RP_INITIATED_LOGOUT_ALWAYS_PROMPT`
+  only adds prompts). Fix: `automation_orchestrator_configuration_identity_provider_rp_initiated_logout: false`
+  (AO-only sign-out; survey "Sign out of Ansible Automation Platform too"). The role patches an existing IdP.
 - **AO 2026.8: creating an IdP does not persist `configuration.client_secret`.** Symptom: SSO shows
   "authentication failed"; AO backend logs `Token exchange failed with HTTP 401`; the gateway access log shows
   `POST /o/token/ 401` from `python-httpx` with no client credentials. Fix: PATCH the provider with the **full**

@@ -41,6 +41,10 @@ site_execution_environment: Default execution environment
 site_automation_platform_gateway_host: aap.example.com
 # Name of the AO integration that launches AAP jobs (as created by automation_orchestrator_configuration).
 site_automation_orchestrator_platform_integration_name: Ansible Automation Platform
+# AO single sign-on survey default (automation_orchestrator_integration): "true" = signing out of AO also ends the
+# AAP session (RP-initiated logout). AAP asks "Confirm Logout" whenever its own session already expired (gateway
+# SESSION_COOKIE_AGE, 15 min by default) and Cancel shows an error; "false" = AO-only sign-out, no AAP page.
+site_automation_orchestrator_rp_initiated_logout: "true"
 # Existing AAP machine credential (SSH user with sudo) for the hosts in the CVE remediation inventory.
 site_machine_credential: Linux hosts
 # Credentials for "Automation Orchestrator | Configure CVE remediation workflow": the OpenShift API credential lets it

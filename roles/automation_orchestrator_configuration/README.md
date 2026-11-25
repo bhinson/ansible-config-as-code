@@ -50,6 +50,7 @@ See `defaults/main.yml`. Inputs normally supplied by the job template survey:
 | `automation_orchestrator_configuration_configure_single_sign_on` | `true` | `"true"`/`"false"` strings from surveys work |
 | `automation_orchestrator_configuration_oauth_app_organization` | `Default` | AAP organization owning the OAuth app |
 | `automation_orchestrator_configuration_identity_provider_disable_tls_verify` | `false` | IdPs have no CA field; docs say enable for internal certs |
+| `automation_orchestrator_configuration_identity_provider_rp_initiated_logout` | `true` | AO sign-out also ends the AAP session; AAP shows "Confirm Logout" when its own session already expired. `false` = AO-only sign-out |
 | `automation_orchestrator_configuration_recreate_oauth_app` | `false` | Deletes and recreates the AAP OAuth app |
 | `automation_orchestrator_configuration_validate_certs` | `true` | This job verifies the cluster API, AO and AAP certificates |
 | `automation_orchestrator_configuration_integration_validate_certs` | `true` | AO verifies the AAP certificate; `false` sets `insecure_skip_tls_verify` |

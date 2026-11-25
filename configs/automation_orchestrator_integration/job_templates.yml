@@ -66,6 +66,16 @@ controller_templates__automation_orchestrator_integration:
           choices: ["true", "false"]
           required: true
           default: "true"
+        - question_name: Sign out of Ansible Automation Platform too
+          question_description: >-
+            true = signing out of Automation Orchestrator also ends the Ansible Automation Platform session (Ansible
+            Automation Platform shows a Confirm Logout page if its own session already expired); false = sign out of
+            Automation Orchestrator only
+          variable: automation_orchestrator_configuration_identity_provider_rp_initiated_logout
+          type: multiplechoice
+          choices: ["true", "false"]
+          required: true
+          default: "{{ site_automation_orchestrator_rp_initiated_logout }}"
         - question_name: Recreate the OAuth application
           question_description: Only if the application exists but Automation Orchestrator doesn't use it (invalidates the old client secret)
           variable: automation_orchestrator_configuration_recreate_oauth_app
