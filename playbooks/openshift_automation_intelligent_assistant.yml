@@ -1,0 +1,12 @@
+---
+# Enable the automation intelligent assistant (Ansible Lightspeed chat in the Ansible Automation Platform (AAP) UI) on an
+# operator-based AAP installation on OpenShift, connected to a large language model (LLM) provider.
+# In AAP: job template "Intelligent assistant | Enable on OpenShift" (survey supplies the LLM settings; credentials:
+# OpenShift API (configuration as code) + Red Hat Ansible Automation Platform).
+#   Local test: source scripts/env.sh && ansible-playbook playbooks/openshift_automation_intelligent_assistant.yml -e @my-vars.yml
+- name: Automation intelligent assistant on OpenShift
+  hosts: localhost
+  gather_facts: false
+  roles:
+    - role: openshift_automation_intelligent_assistant
+...

@@ -1,0 +1,97 @@
+---
+# Area automation_intelligent_assistant: enable the automation intelligent assistant (Ansible Lightspeed chat) on an
+# operator-based Ansible Automation Platform installation on OpenShift. Independent of the other areas.
+controller_templates__automation_intelligent_assistant:
+  - name: Intelligent assistant | Enable on OpenShift
+    description: >-
+      Enable the automation intelligent assistant in the Ansible Automation Platform UI, connected to a large language
+      model provider (role openshift_automation_intelligent_assistant)
+    organization: "{{ site_organization }}"
+    project: Configuration as code - ansible-config-as-code
+    playbook: playbooks/openshift_automation_intelligent_assistant.yml
+    inventory: Configuration as code - localhost
+    execution_environment: "{{ site_execution_environment }}"
+    credentials:
+      - Configuration as code - OpenShift API
+      - Configuration as code - Ansible Automation Platform
+    survey_enabled: true
+    survey_spec:
+      name: Automation intelligent assistant
+      description: >-
+        Inputs for openshift_automation_intelligent_assistant (the Ansible Automation Platform instance is discovered
+        when empty)
+      spec:
+        - question_name: State
+          question_description: present = enable or update; absent = disable and remove the intelligent assistant
+          variable: openshift_automation_intelligent_assistant_state
+          type: multiplechoice
+          choices: [present, absent]
+          required: true
+          default: present
+        - question_name: Ansible Automation Platform namespace
+          question_description: Namespace of the AnsibleAutomationPlatform custom resource; empty = discover from this job's credential
+          variable: openshift_automation_intelligent_assistant_platform_namespace
+          type: text
+          required: false
+          default: ""
+        - question_name: Ansible Automation Platform instance name
+          question_description: Name of the AnsibleAutomationPlatform custom resource; empty = discover
+          variable: openshift_automation_intelligent_assistant_platform_name
+          type: text
+          required: false
+          default: ""
+        - question_name: LLM provider type
+          question_description: >-
+            rhoai_vllm = Red Hat OpenShift AI, Red Hat Enterprise Linux AI or Red Hat AI Inference Server (vLLM);
+            openai = OpenAI; azure_openai = Microsoft Azure OpenAI
+          variable: openshift_automation_intelligent_assistant_llm_provider_type
+          type: multiplechoice
+          choices: [rhoai_vllm, openai, azure_openai]
+          required: true
+          default: "{{ site_automation_intelligent_assistant_llm_provider_type }}"
+        - question_name: LLM base URL
+          question_description: Inference API base URL, for example https://llm.example.com/v1
+          variable: openshift_automation_intelligent_assistant_llm_url
+          type: text
+          required: false
+          default: "{{ site_automation_intelligent_assistant_llm_url }}"
+        - question_name: LLM model
+          question_description: Model name served by the provider (needs tool calling)
+          variable: openshift_automation_intelligent_assistant_llm_model
+          type: text
+          required: false
+          default: "{{ site_automation_intelligent_assistant_llm_model }}"
+        - question_name: LLM API token
+          question_description: API key or token; empty = keep the token of the configuration in use (required the first time)
+          variable: openshift_automation_intelligent_assistant_llm_token
+          type: password
+          required: false
+        - question_name: Model configuration extras (JSON)
+          question_description: Extra provider parameters, for example {"api_version":"2025-01-01-preview"} for Azure OpenAI; empty = none
+          variable: openshift_automation_intelligent_assistant_llm_model_config_extras
+          type: text
+          required: false
+          default: ""
+        - question_name: Agent configuration extras (JSON)
+          question_description: Agent behavior, for example {"chatbot_temperature_override":1}; empty = none
+          variable: openshift_automation_intelligent_assistant_llm_agent_config_extras
+          type: text
+          required: false
+          default: ""
+        - question_name: MCP servers in the assistant
+          question_description: >-
+            gateway_and_controller = Lightspeed service and automation controller MCP servers (live answers from this
+            platform with the user's permissions); gateway = Lightspeed service only; none
+          variable: openshift_automation_intelligent_assistant_mcp_servers
+          type: multiplechoice
+          choices: [gateway_and_controller, gateway, none]
+          required: true
+          default: gateway_and_controller
+        - question_name: Verify TLS certificates from this job
+          question_description: The job's calls to the cluster API
+          variable: openshift_automation_intelligent_assistant_validate_certs
+          type: multiplechoice
+          choices: ["true", "false"]
+          required: true
+          default: "true"
+...

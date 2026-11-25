@@ -1,0 +1,190 @@
+---
+# The AAP operator creates the AnsibleLightspeed CR from spec.lightspeed only when it doesn't exist yet and never passes
+# later spec.lightspeed changes on (same as spec.mcp). So this sets spec.lightspeed (for a fresh deploy or a rebuild) and,
+# when the AnsibleLightspeed CR already exists, points it at the new Secret directly; the Lightspeed operator then
+# redeploys the chatbot. The Lightspeed operator records the Secret it applied in status.chatbotConfigurationSecret.
+
+- name: Assistant | Normalize survey-style inputs
+  ansible.builtin.set_fact:
+    # A dict or a JSON string; empty = not set
+    __assistant_model_config_extras: >-
+      {{ (openshift_automation_intelligent_assistant_llm_model_config_extras | to_json)
+         if openshift_automation_intelligent_assistant_llm_model_config_extras is mapping
+         else (openshift_automation_intelligent_assistant_llm_model_config_extras | default('', true) | string | trim) }}
+    __assistant_agent_config_extras: >-
+      {{ (openshift_automation_intelligent_assistant_llm_agent_config_extras | to_json)
+         if openshift_automation_intelligent_assistant_llm_agent_config_extras is mapping
+         else (openshift_automation_intelligent_assistant_llm_agent_config_extras | default('', true) | string | trim) }}
+    # The Secret the running assistant uses (AnsibleLightspeed CR first, it is what the Lightspeed operator reads)
+    __assistant_current_secret_name: >-
+      {{ (__assistant_lightspeed_existing.resources[0].spec.chatbot_config_secret_name | default('')
+          if __assistant_lightspeed_existing.resources | length > 0 else '')
+         or __assistant_platform_spec_lightspeed.chatbot_config_secret_name | default('') }}
+
+- name: Assistant | Check the inputs
+  ansible.builtin.assert:
+    that:
+      - openshift_automation_intelligent_assistant_llm_provider_type in ['rhoai_vllm', 'openai', 'azure_openai']
+      - openshift_automation_intelligent_assistant_llm_url is match('https?://.+')
+      - openshift_automation_intelligent_assistant_llm_model | length > 0
+      - openshift_automation_intelligent_assistant_mcp_servers in ['gateway_and_controller', 'gateway', 'none']
+      - __assistant_model_config_extras | length == 0 or (__assistant_model_config_extras | from_json) is mapping
+      - __assistant_agent_config_extras | length == 0 or (__assistant_agent_config_extras | from_json) is mapping
+    fail_msg: >-
+      Needs the LLM provider type (rhoai_vllm, openai or azure_openai), the inference API base URL (https://...), the model
+      name, MCP servers gateway_and_controller, gateway or none, and JSON objects (or empty) for the config extras.
+    quiet: true
+
+- name: Assistant | Read the token of the Secret in use (token left empty)
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Secret
+    namespace: "{{ __assistant_platform_namespace }}"
+    name: "{{ __assistant_current_secret_name }}"
+  register: __assistant_current_secret
+  when:
+    - openshift_automation_intelligent_assistant_llm_token | length == 0
+    - __assistant_current_secret_name | length > 0
+  no_log: true
+
+- name: Assistant | Resolve the LLM token
+  ansible.builtin.set_fact:
+    __assistant_token: >-
+      {{ openshift_automation_intelligent_assistant_llm_token
+         if openshift_automation_intelligent_assistant_llm_token | length > 0
+         else (((__assistant_current_secret.resources | default([]) | first | default({})).data | default({})).chatbot_token
+               | default('') | b64decode) }}
+  no_log: true
+
+- name: Assistant | Check that an LLM token is available
+  ansible.builtin.assert:
+    that: __assistant_token | length > 0
+    fail_msg: >-
+      No LLM token: give openshift_automation_intelligent_assistant_llm_token (the survey's API token). It may only be
+      left empty when the assistant already runs with a Secret that has one.
+    quiet: true
+
+- name: Assistant | Build the chatbot configuration
+  ansible.builtin.set_fact:
+    __assistant_secret_data: >-
+      {{ {'chatbot_llm_provider_type': openshift_automation_intelligent_assistant_llm_provider_type,
+          'chatbot_url': openshift_automation_intelligent_assistant_llm_url | regex_replace('/+$', ''),
+          'chatbot_model': openshift_automation_intelligent_assistant_llm_model,
+          'chatbot_token': __assistant_token}
+         | combine({'chatbot_model_config_extras': __assistant_model_config_extras} if __assistant_model_config_extras | length > 0 else {})
+         | combine({'chatbot_agent_config_extras': __assistant_agent_config_extras} if __assistant_agent_config_extras | length > 0 else {})
+         | combine({'aap_gateway_url': openshift_automation_intelligent_assistant_mcp_gateway_url
+                    | default('http://' ~ __assistant_platform_name, true)}
+                   if openshift_automation_intelligent_assistant_mcp_servers in ['gateway', 'gateway_and_controller'] else {})
+         | combine({'aap_controller_url': openshift_automation_intelligent_assistant_mcp_controller_url
+                    | default('http://' ~ __assistant_platform_name ~ '-controller-service', true)}
+                   if openshift_automation_intelligent_assistant_mcp_servers == 'gateway_and_controller' else {}) }}
+  no_log: true
+
+# Content hash in the name: a changed configuration is a new Secret, which the Lightspeed operator picks up
+- name: Assistant | Name the chatbot configuration Secret
+  ansible.builtin.set_fact:
+    __assistant_secret_name: >-
+      {{ __assistant_secret_prefix ~ '-' ~ (__assistant_secret_data | dictsort | to_json | hash('sha256'))[:10] }}
+
+- name: Assistant | Create the chatbot configuration Secret
+  redhat.openshift.k8s:  # noqa: fqcn[canonical]
+    state: present
+    apply: true
+    definition:
+      apiVersion: v1
+      kind: Secret
+      type: Opaque
+      metadata:
+        name: "{{ __assistant_secret_name }}"
+        namespace: "{{ __assistant_platform_namespace }}"
+        labels:
+          app.kubernetes.io/managed-by: ansible-config-as-code
+          app.kubernetes.io/component: intelligent-assistant-chatbot-configuration
+          app.kubernetes.io/instance: "{{ __assistant_platform_name }}"
+      stringData: "{{ __assistant_secret_data }}"
+  no_log: true
+
+- name: Assistant | Build the wanted spec.lightspeed
+  ansible.builtin.set_fact:
+    __assistant_spec: >-
+      {{ {'disabled': false, 'chatbot_config_secret_name': __assistant_secret_name}
+         | combine(openshift_automation_intelligent_assistant_spec_overrides, recursive=True) }}
+
+- name: Assistant | Set spec.lightspeed on the Ansible Automation Platform custom resource
+  redhat.openshift.k8s:  # noqa: fqcn[canonical]
+    state: present
+    apply: true
+    definition:
+      apiVersion: aap.ansible.com/v1alpha1
+      kind: AnsibleAutomationPlatform
+      metadata:
+        name: "{{ __assistant_platform_name }}"
+        namespace: "{{ __assistant_platform_namespace }}"
+      spec:
+        lightspeed: "{{ __assistant_spec }}"
+
+- name: Assistant | Point the existing AnsibleLightspeed custom resource at the new configuration
+  redhat.openshift.k8s:  # noqa: fqcn[canonical]
+    state: present
+    merge_type: merge
+    definition:
+      apiVersion: lightspeed.ansible.com/v1alpha1
+      kind: AnsibleLightspeed
+      metadata:
+        name: "{{ __assistant_lightspeed_name }}"
+        namespace: "{{ __assistant_platform_namespace }}"
+      spec: "{{ __assistant_spec | dict2items | rejectattr('key', 'in', ['disabled', 'name']) | items2dict }}"
+  when: __assistant_lightspeed_existing.resources | length > 0
+
+- name: Assistant | Wait for the Lightspeed operator to apply the configuration
+  kubernetes.core.k8s_info:
+    api_version: lightspeed.ansible.com/v1alpha1
+    kind: AnsibleLightspeed
+    namespace: "{{ __assistant_platform_namespace }}"
+    name: "{{ __assistant_lightspeed_name }}"
+  register: __assistant_lightspeed
+  until:
+    - __assistant_lightspeed.resources | length > 0
+    - __assistant_lightspeed.resources[0].status.chatbotConfigurationSecret | default('') == __assistant_secret_name
+  retries: "{{ openshift_automation_intelligent_assistant_wait_retries }}"
+  delay: "{{ openshift_automation_intelligent_assistant_wait_delay }}"
+
+- name: Assistant | Wait for the Lightspeed deployments
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    namespace: "{{ __assistant_platform_namespace }}"
+    name: "{{ __assistant_lightspeed_name }}-{{ item }}"
+  register: __assistant_deployment
+  until:
+    - __assistant_deployment.resources | length > 0
+    - __assistant_deployment.resources[0].status.observedGeneration | default(0) >= __assistant_deployment.resources[0].metadata.generation
+    - __assistant_deployment.resources[0].status.updatedReplicas | default(0) == __assistant_deployment.resources[0].spec.replicas
+    - __assistant_deployment.resources[0].status.availableReplicas | default(0) == __assistant_deployment.resources[0].spec.replicas
+    - __assistant_deployment.resources[0].status.replicas | default(0) == __assistant_deployment.resources[0].spec.replicas
+  retries: "{{ openshift_automation_intelligent_assistant_wait_retries }}"
+  delay: "{{ openshift_automation_intelligent_assistant_wait_delay }}"
+  loop: [api, chatbot-api]
+
+- name: Assistant | Remove superseded chatbot configuration Secrets made by this role
+  redhat.openshift.k8s:  # noqa: fqcn[canonical]
+    state: absent
+    api_version: v1
+    kind: Secret
+    namespace: "{{ __assistant_platform_namespace }}"
+    name: "{{ item }}"
+  loop: >-
+    {{ __assistant_managed_secrets.resources | map(attribute='metadata') | map(attribute='name')
+       | reject('equalto', __assistant_secret_name) | list }}
+
+- name: Assistant | Prepare the report
+  ansible.builtin.set_fact:
+    __assistant_report:
+      - >-
+        Automation intelligent assistant {{ __assistant_platform_namespace }}/{{ __assistant_lightspeed_name }} is running
+        (provider {{ openshift_automation_intelligent_assistant_llm_provider_type }}, model
+        {{ openshift_automation_intelligent_assistant_llm_model }}, MCP servers
+        {{ openshift_automation_intelligent_assistant_mcp_servers }}, Secret {{ __assistant_secret_name }}).
+      - Open the Ansible Automation Platform UI and use the intelligent assistant icon at the top right.
+...

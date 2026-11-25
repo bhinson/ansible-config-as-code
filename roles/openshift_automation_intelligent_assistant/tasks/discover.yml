@@ -1,0 +1,64 @@
+---
+- name: Discover | Read the Ansible Automation Platform custom resources
+  kubernetes.core.k8s_info:
+    api_version: aap.ansible.com/v1alpha1
+    kind: AnsibleAutomationPlatform
+    namespace: "{{ openshift_automation_intelligent_assistant_platform_namespace | default(omit, true) }}"
+    name: "{{ openshift_automation_intelligent_assistant_platform_name | default(omit, true) }}"
+  register: __assistant_platforms
+
+# A named CR wins; else the CR whose status URL is the AAP URL of this job; else the only CR in the cluster.
+- name: Discover | Pick the Ansible Automation Platform custom resource
+  ansible.builtin.set_fact:
+    __assistant_platform: >-
+      {{ (__assistant_platforms.resources if openshift_automation_intelligent_assistant_platform_name | length > 0
+          else (__assistant_matching if __assistant_matching | length > 0 else __assistant_platforms.resources)) }}
+  vars:
+    __assistant_wanted_url: >-
+      {{ aap_hostname | default('') | regex_replace('^(?!https?://)(.+)$', 'https://\1') | regex_replace('/+$', '') }}
+    __assistant_matching: >-
+      {{ __assistant_platforms.resources | selectattr('status.URL', 'defined')
+         | selectattr('status.URL', 'equalto', __assistant_wanted_url) | list }}
+
+- name: Discover | Check that exactly one Ansible Automation Platform custom resource was found
+  ansible.builtin.assert:
+    that: __assistant_platform | length == 1
+    fail_msg: >-
+      Found {{ __assistant_platform | length }} matching AnsibleAutomationPlatform custom resources
+      ({{ __assistant_platforms.resources | map(attribute='metadata') | map(attribute='name') | join(', ') }}). Set
+      openshift_automation_intelligent_assistant_platform_namespace and _platform_name.
+    quiet: true
+
+- name: Discover | Keep the Ansible Automation Platform instance details
+  ansible.builtin.set_fact:
+    __assistant_platform_namespace: "{{ __assistant_platform[0].metadata.namespace }}"
+    __assistant_platform_name: "{{ __assistant_platform[0].metadata.name }}"
+    __assistant_platform_spec_lightspeed: "{{ __assistant_platform[0].spec.lightspeed | default({}) }}"
+    # Same name rule as the AAP operator
+    __assistant_lightspeed_name: >-
+      {{ (__assistant_platform[0].spec.lightspeed | default({})).name | default(__assistant_platform[0].metadata.name ~ '-lightspeed') }}
+    __assistant_secret_prefix: >-
+      {{ openshift_automation_intelligent_assistant_secret_prefix
+         | default(__assistant_platform[0].metadata.name ~ '-intelligent-assistant', true) }}
+
+- name: Discover | Read the existing AnsibleLightspeed custom resource
+  kubernetes.core.k8s_info:
+    api_version: lightspeed.ansible.com/v1alpha1
+    kind: AnsibleLightspeed
+    namespace: "{{ __assistant_platform_namespace }}"
+    name: "{{ __assistant_lightspeed_name }}"
+  register: __assistant_lightspeed_existing
+
+# Secrets this role made (label), so superseded ones can be removed
+- name: Discover | Find the chatbot configuration Secrets made by this role
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Secret
+    namespace: "{{ __assistant_platform_namespace }}"
+    label_selectors:
+      - app.kubernetes.io/managed-by=ansible-config-as-code
+      - app.kubernetes.io/component=intelligent-assistant-chatbot-configuration
+      - app.kubernetes.io/instance={{ __assistant_platform_name }}
+  register: __assistant_managed_secrets
+  no_log: true
+...

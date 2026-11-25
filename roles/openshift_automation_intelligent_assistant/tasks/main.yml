@@ -1,0 +1,37 @@
+---
+# Uses redhat.openshift (applies objects) and kubernetes.core (lookups), both Red Hat certified.
+# Cluster authentication: K8S_AUTH_* environment variables (job credential). aap_hostname (Red Hat Ansible Automation
+# Platform credential, optional) only helps pick the AnsibleAutomationPlatform custom resource.
+# Docs: AAP 2.7 extend guide, "Deploy the automation intelligent assistant on OpenShift Container Platform",
+# "Change your LLM model", "Disable the automation intelligent assistant on an operator-based deployment".
+
+- name: Main | Check the requested state
+  ansible.builtin.assert:
+    that: openshift_automation_intelligent_assistant_state in ['present', 'absent']
+    fail_msg: openshift_automation_intelligent_assistant_state must be present or absent.
+    quiet: true
+
+- name: Main | Configure the automation intelligent assistant
+  module_defaults:
+    group/kubernetes.core.k8s:
+      validate_certs: "{{ openshift_automation_intelligent_assistant_validate_certs | bool }}"
+    redhat.openshift.k8s:
+      validate_certs: "{{ openshift_automation_intelligent_assistant_validate_certs | bool }}"
+  block:
+    - name: Main | Discover the Ansible Automation Platform instance
+      ansible.builtin.include_tasks: discover.yml
+
+    - name: Main | Deploy the automation intelligent assistant
+      ansible.builtin.include_tasks: assistant.yml
+      when: openshift_automation_intelligent_assistant_state == 'present'
+
+    - name: Main | Remove the automation intelligent assistant
+      ansible.builtin.include_tasks: remove.yml
+      when: openshift_automation_intelligent_assistant_state == 'absent'
+
+    - name: Main | Report
+      ansible.builtin.debug:
+        msg: >-
+          {{ __assistant_report if openshift_automation_intelligent_assistant_state == 'present'
+             else ['Automation intelligent assistant removed from ' ~ __assistant_platform_namespace ~ '/' ~ __assistant_platform_name] }}
+...

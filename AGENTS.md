@@ -41,6 +41,10 @@ are linked, never copied, so they stay current.
   AnsibleMCPServer, OAuth 2.1 sign-in, certificate errors: follow
   [skills/automation-mcp-install-openshift/SKILL.md](skills/automation-mcp-install-openshift/SKILL.md).
 
+## Automation intelligent assistant (only when working on it)
+- Enabling the Lightspeed chat on an operator-based AAP (`roles/openshift_automation_intelligent_assistant`),
+  `spec.lightspeed` / AnsibleLightspeed, chatbot configuration Secret, LLM changes: read the role's README.
+
 ## Always
 - **Never** write self-referential Jinja under task `vars:` (`key: "{{ key | default([]) }}"`); it causes recursive
   template loops. Follow upstream [ansible-jinja-no-self-ref](https://github.com/redhat-cop/aap_configuration_extended/blob/devel/skills/ansible-jinja-no-self-ref/SKILL.md) and run the

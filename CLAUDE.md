@@ -34,7 +34,7 @@ certified/validated, private hub, Galaxy, in that order), so the repo holds no g
 - `playbooks/` – entry points (`openshift_*` for OpenShift and for applying the AAP configuration, `export_automation_platform.yml`;
   `configure_automation_platform.yml` is only an alias of `openshift_automation_platform.yml`).
 - `roles/<platform>_<thing>/` – our roles: `openshift_automation_platform` (installs/adopts the AAP operator through the shared
-  `openshift_ansible_platform_operator`, applies `configs/` with infra.aap_configuration.dispatch, optional OpenShift
+  `openshift_automation_platform_operator`, applies `configs/` with infra.aap_configuration.dispatch, optional OpenShift
   Virtualization inventory with a read-only service account, stopped VMs synced as disabled hosts; job template
   "Configuration as code | Apply Ansible Automation Platform configuration"), `openshift_automation_orchestrator` (install Automation Orchestrator (AO)), `automation_orchestrator_configuration` (connect AO to AAP),
   `automation_orchestrator_llm_integration` (connect AO to a large language model (LLM) provider),
@@ -44,7 +44,8 @@ certified/validated, private hub, Galaxy, in that order), so the repo holds no g
   of AO), `openshift_automation_developer_hub` (Red Hat Developer Hub with the Ansible plug-ins, AAP sign-in) and the
   shared `openshift_developer_hub_operator` (installs or adopts the RHDH operator for both; included with
   `include_role`, not a job template of its own), `openshift_automation_mcp` (Model Context Protocol (MCP) server for AAP through `spec.mcp`
-  of the AnsibleAutomationPlatform custom resource, optional OAuth application). One role per concern, each with
+  of the AnsibleAutomationPlatform custom resource, optional OAuth application), `openshift_automation_intelligent_assistant`
+  (automation intelligent assistant: chatbot configuration Secret with a content-hash name + `spec.lightspeed`). One role per concern, each with
   its own job template and survey.
 - User inputs: AAP job template **surveys** (`configs/<area>/job_templates.yml`). Survey answers are strings, so roles accept
   comma-separated lists and `"true"`/`"false"`, and treat `""` as unset (`default(x, true)`).

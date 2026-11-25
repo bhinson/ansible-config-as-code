@@ -1,0 +1,58 @@
+---
+# openshift_automation_intelligent_assistant: enable the automation intelligent assistant (the Ansible Lightspeed chat
+# interface in the Ansible Automation Platform (AAP) UI) on an operator-based AAP installation on OpenShift.
+# The role writes the chatbot configuration Secret (large language model (LLM) provider settings) and sets
+# spec.lightspeed of the AnsibleAutomationPlatform custom resource (CR); the AAP operator then creates the
+# AnsibleLightspeed CR <AAP CR name>-lightspeed. Site values belong in job template surveys.
+# Docs: AAP 2.7 extend guide, "Deploy the automation intelligent assistant on OpenShift Container Platform".
+
+# present = deploy or update; absent = disable the assistant and delete the AnsibleLightspeed CR and the Secrets
+openshift_automation_intelligent_assistant_state: present
+
+# --- AAP instance ---
+# AnsibleAutomationPlatform CR that gets the assistant. Empty = the CR whose status URL matches aap_hostname, or the
+# only CR in the cluster.
+openshift_automation_intelligent_assistant_platform_namespace: ""
+openshift_automation_intelligent_assistant_platform_name: ""
+
+# --- LLM provider (keys of the chatbot configuration Secret) ---
+# chatbot_llm_provider_type: rhoai_vllm (Red Hat OpenShift AI, Red Hat Enterprise Linux AI or Red Hat AI Inference
+# Server with vLLM), openai, or azure_openai. These three are the values the Lightspeed operator accepts.
+openshift_automation_intelligent_assistant_llm_provider_type: rhoai_vllm
+# chatbot_url: inference API base URL, for example https://llm.example.com/v1 (Azure OpenAI: https://<name>.openai.azure.com)
+openshift_automation_intelligent_assistant_llm_url: ""
+# chatbot_model: model name served by the provider; it must support tool calling
+openshift_automation_intelligent_assistant_llm_model: ""
+# chatbot_token: API key or token. Empty = keep the token of the Secret currently in use (rerun without retyping it).
+openshift_automation_intelligent_assistant_llm_token: ""
+# chatbot_model_config_extras: JSON object of extra provider parameters, for example {"api_version": "2025-01-01-preview"}
+# for Azure OpenAI (a dict or a JSON string; empty = none)
+openshift_automation_intelligent_assistant_llm_model_config_extras: ""
+# chatbot_agent_config_extras: JSON object for agent behavior, for example {"chatbot_temperature_override": 1}
+openshift_automation_intelligent_assistant_llm_agent_config_extras: ""
+
+# --- MCP servers inside the assistant (aap_gateway_url / aap_controller_url keys) ---
+# gateway_and_controller = Lightspeed service and automation controller MCP servers; gateway = Lightspeed service only;
+# none = no Model Context Protocol (MCP) servers. Both use the signed-in user's token.
+openshift_automation_intelligent_assistant_mcp_servers: gateway_and_controller
+# Internal URLs; empty = http://<AAP CR name> and http://<AAP CR name>-controller-service (the docs' example)
+openshift_automation_intelligent_assistant_mcp_gateway_url: ""
+openshift_automation_intelligent_assistant_mcp_controller_url: ""
+
+# --- Secret ---
+# Name prefix of the chatbot configuration Secret; empty = <AAP CR name>-intelligent-assistant. The name gets a hash of
+# the content appended: the Lightspeed operator doesn't notice edits to a Secret it already uses, so every change gets a
+# new Secret (the docs' "Change your LLM model"), and the role removes the Secrets it made before.
+openshift_automation_intelligent_assistant_secret_prefix: ""
+
+# Anything else in spec.lightspeed (recursively merged over the generated spec), for example
+# {chatbot_extra_settings: {chatbot_byok_image: quay.io/example/rag-content-output}}
+openshift_automation_intelligent_assistant_spec_overrides: {}
+
+# --- TLS --- Verify TLS certificates on this job's calls to the cluster API
+openshift_automation_intelligent_assistant_validate_certs: true
+
+# --- waits --- (the AAP operator reconciles every few minutes; a first deploy pulls several images)
+openshift_automation_intelligent_assistant_wait_retries: 180
+openshift_automation_intelligent_assistant_wait_delay: 10
+...

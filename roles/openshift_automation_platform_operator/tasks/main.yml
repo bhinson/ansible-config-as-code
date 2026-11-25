@@ -1,14 +1,14 @@
 ---
 # Uses redhat.openshift (applies objects) and kubernetes.core (lookups), both Red Hat certified. Authentication comes
-# from K8S_AUTH_* environment variables (OpenShift API credential). Output: fact openshift_ansible_platform_operator_result
+# from K8S_AUTH_* environment variables (OpenShift API credential). Output: fact openshift_automation_platform_operator_result
 # ({namespace, subscription, channel, cluster_service_version, adopted}).
 
 - name: Main | Install or adopt the Ansible Automation Platform operator
   module_defaults:
     group/kubernetes.core.k8s:
-      validate_certs: "{{ openshift_ansible_platform_operator_validate_certs | bool }}"
+      validate_certs: "{{ openshift_automation_platform_operator_validate_certs | bool }}"
     redhat.openshift.k8s:
-      validate_certs: "{{ openshift_ansible_platform_operator_validate_certs | bool }}"
+      validate_certs: "{{ openshift_automation_platform_operator_validate_certs | bool }}"
   block:
     - name: Main | Find existing Subscriptions for the package (any namespace)
       kubernetes.core.k8s_info:
@@ -20,20 +20,20 @@
       ansible.builtin.set_fact:
         __platform_operator_existing: >-
           {{ __platform_operator_subscriptions.resources
-             | selectattr('spec.name', 'equalto', openshift_ansible_platform_operator_package) | first | default({}) }}
+             | selectattr('spec.name', 'equalto', openshift_automation_platform_operator_package) | first | default({}) }}
 
     - name: Main | Refuse an unrequested channel change (it would upgrade Ansible Automation Platform)
       ansible.builtin.assert:
         that: >-
           __platform_operator_existing | length == 0
-          or __platform_operator_existing.spec.channel == openshift_ansible_platform_operator_channel
-          or openshift_ansible_platform_operator_allow_channel_change | bool
+          or __platform_operator_existing.spec.channel == openshift_automation_platform_operator_channel
+          or openshift_automation_platform_operator_allow_channel_change | bool
         fail_msg: >-
           Subscription {{ __platform_operator_existing.metadata.namespace | default('') }}/{{
           __platform_operator_existing.metadata.name | default('') }} uses channel
-          {{ __platform_operator_existing.spec.channel | default('') }}, not {{ openshift_ansible_platform_operator_channel }}.
+          {{ __platform_operator_existing.spec.channel | default('') }}, not {{ openshift_automation_platform_operator_channel }}.
           Changing it upgrades Ansible Automation Platform: take a backup, then re-run with
-          openshift_ansible_platform_operator_allow_channel_change=true, or set the channel to the current one.
+          openshift_automation_platform_operator_allow_channel_change=true, or set the channel to the current one.
         quiet: true
 
     - name: Main | Change the channel of the existing Subscription  # noqa: fqcn[canonical]
@@ -45,10 +45,10 @@
         namespace: "{{ __platform_operator_existing.metadata.namespace }}"
         definition:
           spec:
-            channel: "{{ openshift_ansible_platform_operator_channel }}"
+            channel: "{{ openshift_automation_platform_operator_channel }}"
       when:
         - __platform_operator_existing | length > 0
-        - __platform_operator_existing.spec.channel != openshift_ansible_platform_operator_channel
+        - __platform_operator_existing.spec.channel != openshift_automation_platform_operator_channel
 
     - name: Main | Install the operator
       when: __platform_operator_existing | length == 0
@@ -60,14 +60,14 @@
               apiVersion: v1
               kind: Namespace
               metadata:
-                name: "{{ openshift_ansible_platform_operator_namespace }}"
+                name: "{{ openshift_automation_platform_operator_namespace }}"
 
         # A namespace must have exactly one OperatorGroup; keep one that already exists
         - name: Main | Look for an OperatorGroup in the namespace
           kubernetes.core.k8s_info:
             api_version: operators.coreos.com/v1
             kind: OperatorGroup
-            namespace: "{{ openshift_ansible_platform_operator_namespace }}"
+            namespace: "{{ openshift_automation_platform_operator_namespace }}"
           register: __platform_operator_groups
 
         - name: Main | Create the OperatorGroup and Subscription  # noqa: fqcn[canonical]
@@ -79,9 +79,9 @@
     - name: Main | Keep the Subscription location
       ansible.builtin.set_fact:
         __platform_operator_subscription_namespace: >-
-          {{ __platform_operator_existing.metadata.namespace | default(openshift_ansible_platform_operator_namespace) }}
+          {{ __platform_operator_existing.metadata.namespace | default(openshift_automation_platform_operator_namespace) }}
         __platform_operator_subscription_name: >-
-          {{ __platform_operator_existing.metadata.name | default(openshift_ansible_platform_operator_subscription_name) }}
+          {{ __platform_operator_existing.metadata.name | default(openshift_automation_platform_operator_subscription_name) }}
 
     # check mode: a new Subscription isn't created, so there is nothing to wait for
     - name: Main | Wait for the Subscription to report an installed ClusterServiceVersion
@@ -92,8 +92,8 @@
         namespace: "{{ __platform_operator_subscription_namespace }}"
       register: __platform_operator_subscription
       until: (__platform_operator_subscription.resources[0].status.installedCSV | default('')) | length > 0
-      retries: "{{ openshift_ansible_platform_operator_wait_retries }}"
-      delay: "{{ openshift_ansible_platform_operator_wait_delay }}"
+      retries: "{{ openshift_automation_platform_operator_wait_retries }}"
+      delay: "{{ openshift_automation_platform_operator_wait_delay }}"
       when: not ansible_check_mode or __platform_operator_existing | length > 0
 
     - name: Main | Wait for the ClusterServiceVersion to succeed
@@ -104,20 +104,20 @@
         namespace: "{{ __platform_operator_subscription_namespace }}"
       register: __platform_operator_csv
       until: (__platform_operator_csv.resources[0].status.phase | default('')) == 'Succeeded'
-      retries: "{{ openshift_ansible_platform_operator_wait_retries }}"
-      delay: "{{ openshift_ansible_platform_operator_wait_delay }}"
+      retries: "{{ openshift_automation_platform_operator_wait_retries }}"
+      delay: "{{ openshift_automation_platform_operator_wait_delay }}"
       when: __platform_operator_subscription.resources is defined
 
     - name: Main | Report
       ansible.builtin.set_fact:
-        openshift_ansible_platform_operator_result:
+        openshift_automation_platform_operator_result:
           namespace: "{{ __platform_operator_subscription_namespace }}"
           subscription: "{{ __platform_operator_subscription_name }}"
-          channel: "{{ openshift_ansible_platform_operator_channel }}"
+          channel: "{{ openshift_automation_platform_operator_channel }}"
           cluster_service_version: "{{ (__platform_operator_subscription.resources | default([{}]))[0].status.installedCSV | default('(check mode)') }}"
           adopted: "{{ __platform_operator_existing | length > 0 }}"
 
     - name: Main | Show the operator
       ansible.builtin.debug:
-        var: openshift_ansible_platform_operator_result
+        var: openshift_automation_platform_operator_result
 ...

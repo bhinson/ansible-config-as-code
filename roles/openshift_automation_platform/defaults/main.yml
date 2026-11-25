@@ -7,8 +7,8 @@
 # Folder with the configuration areas (configs/<area>/*.yml); default = configs/ of this repo
 openshift_automation_platform_configuration_directory: "{{ role_path }}/../../configs"
 
-# Install or adopt the AAP operator first (role openshift_ansible_platform_operator; needs the OpenShift API credential).
-# Its variables (openshift_ansible_platform_operator_channel, ...) pass through.
+# Install or adopt the AAP operator first (role openshift_automation_platform_operator; needs the OpenShift API credential).
+# Its variables (openshift_automation_platform_operator_channel, ...) pass through.
 openshift_automation_platform_operator: true
 
 # --- OpenShift virtual machines inventory (optional) ---

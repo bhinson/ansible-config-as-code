@@ -1,4 +1,4 @@
-# openshift_ansible_platform_operator
+# openshift_automation_platform_operator
 
 Installs or adopts the **Ansible Automation Platform (AAP) operator** on OpenShift. `openshift_automation_platform`
 includes it at the start of every configuration run (`openshift_automation_platform_operator`, default `true`), so it has
@@ -8,14 +8,14 @@ Source: AAP 2.7 install guide, "Install the Ansible Automation Platform Operator
 
 - **Adopt**: if a Subscription for `ansible-automation-platform-operator` exists in any namespace, no second one is
   created. Only its channel is managed. A different channel means an AAP upgrade, so the run fails unless
-  `openshift_ansible_platform_operator_allow_channel_change` is `true` (take an AAP backup first). Namespace,
+  `openshift_automation_platform_operator_allow_channel_change` is `true` (take an AAP backup first). Namespace,
   OperatorGroup, approval and source stay as they are.
 - **Install**: namespace `ansible-automation-platform` (it should run only AAP), an OperatorGroup that targets it (an
   existing OperatorGroup is kept), and the Subscription (channel `stable-2.7`, automatic approval, `redhat-operators`).
 - Then it waits for the Subscription's installed ClusterServiceVersion (CSV) to reach `Succeeded`. On reruns that takes
   a few API reads (seconds).
 
-Output fact: `openshift_ansible_platform_operator_result` (`namespace`, `subscription`, `channel`,
+Output fact: `openshift_automation_platform_operator_result` (`namespace`, `subscription`, `channel`,
 `cluster_service_version`, `adopted`).
 
 ## Requirements

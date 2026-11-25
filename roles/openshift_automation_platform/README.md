@@ -5,7 +5,7 @@ the OpenShift Virtualization virtual machines**. Job template: "Configuration as
 Platform configuration" (playbook `playbooks/openshift_automation_platform.yml`; `configure_automation_platform.yml`
 is a kept alias).
 
-0. **Operator**: includes `openshift_ansible_platform_operator`, which adopts the existing AAP operator Subscription (or
+0. **Operator**: includes `openshift_automation_platform_operator`, which adopts the existing AAP operator Subscription (or
    installs it) and waits for its ClusterServiceVersion; on reruns a few API reads. Survey: channel (an existing
    Subscription on another channel fails the run unless "Allow an operator channel change" is true, because that upgrades
    AAP). `openshift_automation_platform_operator: false` skips it.

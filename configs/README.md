@@ -12,9 +12,10 @@ AAP objects as data for `infra.aap_configuration.dispatch`, split into **areas**
 | `automation_portal/` | if selected | job template "Automation portal \| Install on OpenShift" |
 | `automation_developer_hub/` | if selected | job template "Developer Hub \| Install with the Ansible plug-ins on OpenShift" |
 | `automation_mcp/` | if selected | job template "MCP server \| Install on OpenShift" |
+| `automation_intelligent_assistant/` | if selected | job template "Intelligent assistant \| Enable on OpenShift" |
 | `platform_management/` | opt-in | Galaxy credentials for the private automation hub mirrors and console.redhat.com, the organizations' Galaxy credential order, and the scheduled job "Automation hub \| Sync collection repositories" |
 
-`site_configuration_areas` selects the areas (default: the seven use-case areas). Each area defines its objects under
+`site_configuration_areas` selects the areas (default: the eight use-case areas). Each area defines its objects under
 `<dispatch variable>__<area>` (for example `controller_templates__cve_remediation`); `common/aggregate.yml` merges
 whatever was loaded into the names the dispatch role reads, and `roles/openshift_automation_platform/tasks/load_configuration.yml` does the
 loading for the configure, initialize and cleanup playbooks. Reference objects by **name**, never by ID.
@@ -24,7 +25,8 @@ and an LLM provider integration (from the integration areas or set up by hand). 
 `site_cve_remediation_workflow_credentials: []` and give the AO URL, admin password and certificate authority (CA) in the
 survey of "Configure CVE remediation workflow"; no OpenShift access is needed then. `automation_developer_hub` is independent too; it and
 `automation_portal` share the Red Hat Developer Hub operator (role `openshift_developer_hub_operator`, which adopts an
-existing install). `automation_mcp` is independent as well (it changes `spec.mcp` of the AAP custom resource). `automation_portal` is independent of AO:
+existing install). `automation_mcp` is independent as well (it changes `spec.mcp` of the AAP custom resource), and so is
+`automation_intelligent_assistant` (`spec.lightspeed`). `automation_portal` is independent of AO:
 it needs only an AAP for the portal to connect to (this job's AAP credential). `platform_management` changes AAP
 itself, needs an AAP administrator token, and is never removed by the cleanup playbook (it adopts existing objects).
 
@@ -60,6 +62,7 @@ ansible-playbook playbooks/initialize_automation_platform.yml -e @/path/to/site.
 | `site_automation_platform_operator_channel` | `stable-2.7` | AAP operator Subscription channel (survey default of the configure job template; a different channel on an existing Subscription fails unless allowed in the survey, because it upgrades AAP) |
 | `site_openshift_virtual_machine_inventory` / `_namespaces` | `"false"` / `""` | survey defaults of the configure job template: create the inventory "Configuration as code - OpenShift virtual machines", and the namespaces it reads (empty = all) |
 | `site_automation_mcp_allow_write_operations` | `"false"` | `"true"` = MCP server tools may change AAP (survey default; automation_mcp) |
+| `site_automation_intelligent_assistant_llm_provider_type` / `_llm_url` / `_llm_model` | `rhoai_vllm` / `""` / `""` | automation intelligent assistant LLM survey defaults (automation_intelligent_assistant); the token stays a survey password |
 | `site_automation_orchestrator_llm_base_url` | `""` | LLM provider base URL (survey default; automation_orchestrator_llm_integration), so a rerun only needs the API key |
 | `site_private_automation_hub_url` | `https://aap.example.com` | your private automation hub (platform_management) |
 | `site_galaxy_credential_organizations` | `[{name: Default}]` | organizations whose Galaxy credential order is managed (platform_management) |

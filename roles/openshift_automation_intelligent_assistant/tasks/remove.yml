@@ -1,0 +1,50 @@
+---
+# Docs: set spec.lightspeed.disabled true first (so the AAP operator doesn't recreate the AnsibleLightspeed CR), then
+# delete the AnsibleLightspeed CR; the Lightspeed operator removes its pods. The AAP database stays.
+
+- name: Remove | Disable the automation intelligent assistant on the Ansible Automation Platform custom resource
+  redhat.openshift.k8s:  # noqa: fqcn[canonical]
+    state: present
+    apply: true
+    definition:
+      apiVersion: aap.ansible.com/v1alpha1
+      kind: AnsibleAutomationPlatform
+      metadata:
+        name: "{{ __assistant_platform_name }}"
+        namespace: "{{ __assistant_platform_namespace }}"
+      spec:
+        lightspeed:
+          disabled: true
+  when: __assistant_platform_spec_lightspeed | length > 0
+
+- name: Remove | Delete the AnsibleLightspeed custom resource
+  redhat.openshift.k8s:  # noqa: fqcn[canonical]
+    state: absent
+    api_version: lightspeed.ansible.com/v1alpha1
+    kind: AnsibleLightspeed
+    namespace: "{{ __assistant_platform_namespace }}"
+    name: "{{ __assistant_lightspeed_name }}"
+    wait: true
+    wait_timeout: 600
+
+- name: Remove | Wait for the Lightspeed pods to go
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Pod
+    namespace: "{{ __assistant_platform_namespace }}"
+    label_selectors:
+      - app.kubernetes.io/name={{ __assistant_lightspeed_name }}
+  register: __assistant_pods
+  until: __assistant_pods.resources | length == 0
+  retries: "{{ openshift_automation_intelligent_assistant_wait_retries }}"
+  delay: "{{ openshift_automation_intelligent_assistant_wait_delay }}"
+
+- name: Remove | Delete the chatbot configuration Secrets made by this role
+  redhat.openshift.k8s:  # noqa: fqcn[canonical]
+    state: absent
+    api_version: v1
+    kind: Secret
+    namespace: "{{ __assistant_platform_namespace }}"
+    name: "{{ item }}"
+  loop: "{{ __assistant_managed_secrets.resources | map(attribute='metadata') | map(attribute='name') | list }}"
+...

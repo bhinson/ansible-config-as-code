@@ -17,7 +17,7 @@ Red Hat certified collections first, Red Hat validated content second, and commu
 | `playbooks/openshift_automation_orchestrator.yml` | Install Red Hat Automation Orchestrator (AO) on OpenShift (operator, PostgreSQL, instance) |
 | `playbooks/openshift_automation_platform.yml` | Apply `configs/common` and the selected areas via `infra.aap_configuration.dispatch` (`configure_automation_platform.yml` is an alias) |
 | `roles/openshift_automation_platform/` | That configuration run: AAP operator check, `configs/`, optional OpenShift Virtualization virtual machines inventory (generic) |
-| `roles/openshift_ansible_platform_operator/` | Install or adopt the AAP operator (included by the configuration run; an existing Subscription's channel changes only on request) |
+| `roles/openshift_automation_platform_operator/` | Install or adopt the AAP operator (included by the configuration run; an existing Subscription's channel changes only on request) |
 | `playbooks/sync_automation_hub.yml` | Sync private automation hub repositories (scheduled; area platform_management) |
 | `playbooks/export_automation_platform.yml` | Export the live AAP configuration to YAML (`infra.aap_configuration_extended.filetree_create`) |
 | `playbooks/automation_orchestrator_configuration.yml` | Connect AO to AAP (allowlists, integration, single sign-on) |
@@ -31,6 +31,8 @@ Red Hat certified collections first, Red Hat validated content second, and commu
 | `roles/openshift_automation_portal/` | Install and connect Ansible automation portal (generic; independent of AO) |
 | `playbooks/openshift_automation_mcp.yml` | MCP server for AAP on an operator-based AAP on OpenShift (optional OAuth 2.1 application) |
 | `roles/openshift_automation_mcp/` | Deploy and configure the MCP server through the AAP operator (generic) |
+| `playbooks/openshift_automation_intelligent_assistant.yml` | Automation intelligent assistant (Lightspeed chat) on an operator-based AAP on OpenShift, LLM settings from the survey |
+| `roles/openshift_automation_intelligent_assistant/` | Chatbot configuration Secret + `spec.lightspeed` through the AAP operator (generic) |
 | `playbooks/openshift_automation_developer_hub.yml` | Red Hat Developer Hub with the Ansible plug-ins on OpenShift (AAP sign-in, plug-in token) |
 | `roles/openshift_automation_developer_hub/` | Deploy and connect Developer Hub with the Ansible plug-ins (generic) |
 | `roles/openshift_developer_hub_operator/` | Install or adopt the Red Hat Developer Hub operator (shared by the Developer Hub and portal roles) |

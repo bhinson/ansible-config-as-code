@@ -26,7 +26,7 @@ controller_templates__common:
         - question_name: Ansible Automation Platform operator channel
           question_description: >-
             Subscription channel of the Ansible Automation Platform operator (installed if missing, adopted if present)
-          variable: openshift_ansible_platform_operator_channel
+          variable: openshift_automation_platform_operator_channel
           type: text
           required: true
           default: "{{ site_automation_platform_operator_channel }}"
@@ -34,7 +34,7 @@ controller_templates__common:
           question_description: >-
             true = change the channel of an existing operator Subscription, which upgrades Ansible Automation Platform
             (take a backup first); false = fail if it differs
-          variable: openshift_ansible_platform_operator_allow_channel_change
+          variable: openshift_automation_platform_operator_allow_channel_change
           type: multiplechoice
           choices: ["false", "true"]
           required: true

@@ -8,11 +8,11 @@
 
 - name: Main | Install or adopt the Ansible Automation Platform operator
   ansible.builtin.include_role:
-    name: openshift_ansible_platform_operator
+    name: openshift_automation_platform_operator
     apply:
       tags: [always]
   vars:
-    openshift_ansible_platform_operator_validate_certs: "{{ openshift_automation_platform_validate_certs }}"
+    openshift_automation_platform_operator_validate_certs: "{{ openshift_automation_platform_validate_certs }}"
   when: openshift_automation_platform_operator | bool
   tags: [always]
 
