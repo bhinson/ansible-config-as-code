@@ -35,7 +35,7 @@
     label_selectors:
       - app.kubernetes.io/name={{ __assistant_lightspeed_name }}
   register: __assistant_pods
-  until: __assistant_pods.resources | length == 0
+  until: __assistant_pods.resources is defined and __assistant_pods.resources | length == 0
   retries: "{{ openshift_automation_intelligent_assistant_wait_retries }}"
   delay: "{{ openshift_automation_intelligent_assistant_wait_delay }}"
 

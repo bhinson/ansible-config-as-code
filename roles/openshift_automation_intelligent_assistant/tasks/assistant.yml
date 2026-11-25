@@ -145,7 +145,7 @@
     name: "{{ __assistant_lightspeed_name }}"
   register: __assistant_lightspeed
   until:
-    - __assistant_lightspeed.resources | length > 0
+    - __assistant_lightspeed.resources | default([]) | length > 0
     - __assistant_lightspeed.resources[0].status.chatbotConfigurationSecret | default('') == __assistant_secret_name
   retries: "{{ openshift_automation_intelligent_assistant_wait_retries }}"
   delay: "{{ openshift_automation_intelligent_assistant_wait_delay }}"
@@ -158,7 +158,7 @@
     name: "{{ __assistant_lightspeed_name }}-{{ item }}"
   register: __assistant_deployment
   until:
-    - __assistant_deployment.resources | length > 0
+    - __assistant_deployment.resources | default([]) | length > 0
     - __assistant_deployment.resources[0].status.observedGeneration | default(0) >= __assistant_deployment.resources[0].metadata.generation
     - __assistant_deployment.resources[0].status.updatedReplicas | default(0) == __assistant_deployment.resources[0].spec.replicas
     - __assistant_deployment.resources[0].status.availableReplicas | default(0) == __assistant_deployment.resources[0].spec.replicas
