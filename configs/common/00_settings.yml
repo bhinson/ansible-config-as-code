@@ -1,7 +1,8 @@
 ---
 # Global configuration as code behaviour for infra.aap_configuration.dispatch.
 platform_state: present
-aap_configuration_dispatcher_exclude_roles: []
+# controller_inventory_source_update would sync every inventory source on each run; the sources here update on launch
+aap_configuration_dispatcher_exclude_roles: [controller_inventory_source_update]
 
 # ---------------------------------------------------------------------------------------------------------------
 # SITE SETTINGS: example values (the project URL is this repo). Put your real values in a vars file OUTSIDE this repo and pass it when applying:
