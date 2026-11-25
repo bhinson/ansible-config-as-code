@@ -146,4 +146,13 @@ controller_templates__automation_portal:
           type: textarea
           required: false
           default: ""
+        - question_name: Resource requests
+          question_description: >-
+            default = the operator's CPU and memory requests; small = reserve little CPU (for small or single-node
+            clusters; limits unchanged)
+          variable: openshift_automation_portal_resource_profile
+          type: multiplechoice
+          choices: [default, small]
+          required: true
+          default: "{{ site_resource_profile }}"
 ...

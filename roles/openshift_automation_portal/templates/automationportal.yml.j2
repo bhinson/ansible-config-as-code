@@ -14,6 +14,11 @@ deployment:
   route:
     host: {{ __portal_route_host_custom }}
 {% endif %}
+{% if (openshift_automation_portal_resource_profile | default('default', true)) == 'small' %}
+  resources: {{ openshift_automation_portal_small_resources.portal | to_json }}
+devtools:
+  resources: {{ openshift_automation_portal_small_resources.devtools | to_json }}
+{% endif %}
 plugins:
   registry: {{ openshift_automation_portal_registry }}
   catalog:

@@ -42,7 +42,7 @@ certified/validated, private hub, Galaxy, in that order), so the repo holds no g
   `playbooks/cve_remediation_assess.yml` / `cve_remediation_apply.yml` on managed hosts),
   `openshift_automation_portal` (install Ansible automation portal with its operator and connect it to AAP; independent
   of AO), `openshift_automation_developer_hub` (Red Hat Developer Hub with the Ansible plug-ins, AAP sign-in) and the
-  shared `openshift_developer_hub_operator` (installs or adopts the RHDH operator for both; included with
+  shared `openshift_automation_developer_hub_operator` (installs or adopts the RHDH operator for both; included with
   `include_role`, not a job template of its own), `openshift_automation_mcp` (Model Context Protocol (MCP) server for AAP through `spec.mcp`
   of the AnsibleAutomationPlatform custom resource, optional OAuth application), `openshift_automation_intelligent_assistant`
   (automation intelligent assistant: chatbot configuration Secret with a content-hash name + `spec.lightspeed`). One role per concern, each with

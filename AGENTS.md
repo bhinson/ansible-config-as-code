@@ -33,7 +33,7 @@ are linked, never copied, so they stay current.
 
 ## Red Hat Developer Hub (only when working on it)
 - Developer Hub with the Ansible plug-ins (`roles/openshift_automation_developer_hub`), the shared RHDH operator role
-  (`roles/openshift_developer_hub_operator`), sign-in, plug-in or catalog failures: follow
+  (`roles/openshift_automation_developer_hub_operator`), sign-in, plug-in or catalog failures: follow
   [skills/automation-developer-hub-install-openshift/SKILL.md](skills/automation-developer-hub-install-openshift/SKILL.md).
 
 ## MCP server for Ansible Automation Platform (only when working on it)

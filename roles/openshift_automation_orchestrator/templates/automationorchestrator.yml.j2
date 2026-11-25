@@ -1,4 +1,5 @@
 ---
+{% set __orchestrator_small = (openshift_automation_orchestrator_resource_profile | default('default', true)) == 'small' %}
 apiVersion: aap.ansible.com/v1alpha1
 kind: AutomationOrchestrator
 metadata:
@@ -24,6 +25,16 @@ spec:
     hpa:
       minReplicas: {{ openshift_automation_orchestrator_background_worker_min }}
       maxReplicas: {{ openshift_automation_orchestrator_background_worker_max }}
+{% if __orchestrator_small %}
+    resources: {{ openshift_automation_orchestrator_small_resources.backgroundWorker | to_json }}
+  backend:
+    resources: {{ openshift_automation_orchestrator_small_resources.backend | to_json }}
+  worker:
+    resources: {{ openshift_automation_orchestrator_small_resources.worker | to_json }}
+  temporal:
+    server:
+      resources: {{ openshift_automation_orchestrator_small_resources.temporal | to_json }}
+{% endif %}
 {% if __orchestrator_install_allowed_hosts | length > 0 %}
   workflowHttpRequestAllowedHosts:
 {% for h in __orchestrator_install_allowed_hosts %}

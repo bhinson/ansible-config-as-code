@@ -49,6 +49,19 @@ openshift_automation_intelligent_assistant_secret_prefix: ""
 # {chatbot_extra_settings: {chatbot_byok_image: quay.io/example/rag-content-output}}
 openshift_automation_intelligent_assistant_spec_overrides: {}
 
+# --- resource requests ---
+# default = the Lightspeed operator's requests (500m CPU / 5000Mi each for the API and the chatbot); small = reserve
+# little CPU for small or single-node clusters (limits unchanged). Applied through spec.lightspeed and, because the AAP
+# operator doesn't pass later changes on, also on the existing AnsibleLightspeed resource.
+openshift_automation_intelligent_assistant_resource_profile: default
+openshift_automation_intelligent_assistant_small_resources:
+  api:
+    requests: {cpu: 100m, memory: 2Gi}
+    limits: {cpu: 1500m, memory: 8000Mi}
+  chatbot_api:
+    requests: {cpu: 100m, memory: 5000Mi}
+    limits: {cpu: 1500m, memory: 8000Mi}
+
 # --- TLS --- Verify TLS certificates on this job's calls to the cluster API
 openshift_automation_intelligent_assistant_validate_certs: true
 

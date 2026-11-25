@@ -2,7 +2,7 @@
 name: automation-developer-hub-install-openshift
 description: >-
   Install or troubleshoot Red Hat Developer Hub (RHDH) with the Ansible plug-ins on OpenShift with the
-  openshift_automation_developer_hub role, and the shared openshift_developer_hub_operator role (RHDH operator, also used
+  openshift_automation_developer_hub role, and the shared openshift_automation_developer_hub_operator role (RHDH operator, also used
   by the automation portal) - Backstage custom resource, OCI dynamic plug-ins, Ansible Automation Platform (AAP) sign-in,
   plug-in token, CA bundle, Developer Lightspeed preset. Use when editing those roles or debugging Developer Hub.
 ---
@@ -11,7 +11,7 @@ description: >-
 
 Roles: `roles/openshift_automation_developer_hub` (playbook `playbooks/openshift_automation_developer_hub.yml`, area
 `configs/automation_developer_hub`, job template "Developer Hub | Install with the Ansible plug-ins on OpenShift") and the
-shared `roles/openshift_developer_hub_operator`. Docs: AAP 2.7 extend guide "Ansible plug-ins for Red Hat Developer Hub"
+shared `roles/openshift_automation_developer_hub_operator`. Docs: AAP 2.7 extend guide "Ansible plug-ins for Red Hat Developer Hub"
 (OCI delivery) and the RHDH docs **matching the installed operator version** (1.10 here; newer RHDH docs may differ).
 
 ## Operator (shared role)

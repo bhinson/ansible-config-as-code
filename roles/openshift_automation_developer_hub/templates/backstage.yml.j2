@@ -2,6 +2,7 @@
 # Backstage spec (RHDH 1.10 "Use the Red Hat Developer Hub Operator to run Developer Hub with your custom
 # configuration"; AAP 2.7 "Add the Ansible Developer Tools sidecar container"). The CA bundle mounts follow what the
 # automation portal operator generates. dynamic-plugins-registry-auth is picked up by the operator by its fixed name.
+{% set __developer_hub_small = (openshift_automation_developer_hub_resource_profile | default('default', true)) == 'small' %}
 application:
   appConfig:
     mountPath: /opt/app-root/src
@@ -31,6 +32,9 @@ deployment:
         spec:
           containers:
             - name: backstage-backend
+{% if __developer_hub_small %}
+              resources: {{ openshift_automation_developer_hub_small_resources.developer_hub | to_json }}
+{% endif %}
               env:
                 - name: NODE_EXTRA_CA_CERTS
                   value: /etc/pki/tls/custom-ca/ca-bundle.crt
@@ -50,7 +54,7 @@ deployment:
                   value: /etc/pki/tls/custom-ca/ca-bundle.crt
                 - name: REQUESTS_CA_BUNDLE
                   value: /etc/pki/tls/custom-ca/ca-bundle.crt
-              resources: {{ openshift_automation_developer_hub_devtools_resources | to_json }}
+              resources: {{ (openshift_automation_developer_hub_small_resources.devtools if __developer_hub_small else openshift_automation_developer_hub_devtools_resources) | to_json }}
               volumeMounts:
                 - name: custom-ca-bundle
                   mountPath: /etc/pki/tls/custom-ca

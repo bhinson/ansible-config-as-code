@@ -105,10 +105,23 @@
       stringData: "{{ __assistant_secret_data }}"
   no_log: true
 
+# Resource profile "small" sets resource_requirements; "default" leaves them out of spec.lightspeed and clears them on the
+# existing AnsibleLightspeed resource (null in a merge patch removes the field), so the operator's defaults return.
+- name: Assistant | Work out the resource requirements
+  ansible.builtin.set_fact:
+    __assistant_resources: >-
+      {{ {'api': {'resource_requirements': openshift_automation_intelligent_assistant_small_resources.api},
+          'chatbot_api': {'resource_requirements': openshift_automation_intelligent_assistant_small_resources.chatbot_api}}
+         if (openshift_automation_intelligent_assistant_resource_profile | default('default', true)) == 'small' else {} }}
+    __assistant_resources_clear: >-
+      {{ {} if (openshift_automation_intelligent_assistant_resource_profile | default('default', true)) == 'small'
+         else {'api': {'resource_requirements': None}, 'chatbot_api': {'resource_requirements': None}} }}
+
 - name: Assistant | Build the wanted spec.lightspeed
   ansible.builtin.set_fact:
     __assistant_spec: >-
       {{ {'disabled': false, 'chatbot_config_secret_name': __assistant_secret_name}
+         | combine(__assistant_resources, recursive=True)
          | combine(openshift_automation_intelligent_assistant_spec_overrides, recursive=True) }}
 
 - name: Assistant | Set spec.lightspeed on the Ansible Automation Platform custom resource
@@ -134,7 +147,9 @@
       metadata:
         name: "{{ __assistant_lightspeed_name }}"
         namespace: "{{ __assistant_platform_namespace }}"
-      spec: "{{ __assistant_spec | dict2items | rejectattr('key', 'in', ['disabled', 'name']) | items2dict }}"
+      spec: >-
+        {{ __assistant_resources_clear
+           | combine(__assistant_spec | dict2items | rejectattr('key', 'in', ['disabled', 'name']) | items2dict, recursive=True) }}
   when: __assistant_lightspeed_existing.resources | length > 0
 
 - name: Assistant | Wait for the Lightspeed operator to apply the configuration

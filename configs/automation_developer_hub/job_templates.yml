@@ -1,7 +1,7 @@
 ---
 # Area automation_developer_hub: Red Hat Developer Hub with the Ansible plug-ins on OpenShift, signed in and connected to
 # Ansible Automation Platform. Independent of the other areas; shares the Red Hat Developer Hub operator with
-# automation_portal (role openshift_developer_hub_operator).
+# automation_portal (role openshift_automation_developer_hub_operator).
 controller_templates__automation_developer_hub:
   - name: Developer Hub | Install with the Ansible plug-ins on OpenShift
     description: >-
@@ -30,12 +30,12 @@ controller_templates__automation_developer_hub:
           default: developer-hub
         - question_name: Developer Hub operator channel
           question_description: fast = every update; fast-<version> (for example fast-1.10) = z-stream updates only
-          variable: openshift_developer_hub_operator_channel
+          variable: openshift_automation_developer_hub_operator_channel
           type: text
           required: true
           default: "{{ site_developer_hub_operator_channel }}"
         - question_name: Developer Hub operator install plan approval
-          variable: openshift_developer_hub_operator_approval
+          variable: openshift_automation_developer_hub_operator_approval
           type: multiplechoice
           choices: [Automatic, Manual]
           required: true
@@ -148,4 +148,13 @@ controller_templates__automation_developer_hub:
           type: textarea
           required: false
           default: ""
+        - question_name: Resource requests
+          question_description: >-
+            default = the operator's CPU and memory requests; small = reserve little CPU (for small or single-node
+            clusters; limits unchanged)
+          variable: openshift_automation_developer_hub_resource_profile
+          type: multiplechoice
+          choices: [default, small]
+          required: true
+          default: "{{ site_resource_profile }}"
 ...

@@ -80,7 +80,7 @@ spec:
             - name: POSTGRESQL_MAX_CONNECTIONS
               value: "{{ openshift_automation_orchestrator_postgres_max_connections }}"
           resources:
-            requests: {cpu: 100m, memory: 512Mi}
+            requests: {{ (openshift_automation_orchestrator_small_resources.postgres.requests if (openshift_automation_orchestrator_resource_profile | default('default', true)) == 'small' else {'cpu': '100m', 'memory': '512Mi'}) | to_json }}
             limits: {memory: {{ openshift_automation_orchestrator_postgres_memory_limit }}}   # ~5-10 MB per connection slot
           readinessProbe:
             exec: {command: ["/usr/libexec/check-container"]}

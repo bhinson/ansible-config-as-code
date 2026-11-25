@@ -2,14 +2,14 @@
 
 Deploys Red Hat Developer Hub (RHDH) on OpenShift with the **Ansible plug-ins for Red Hat Developer Hub** and connects it
 to an existing Ansible Automation Platform (AAP). Independent of the other roles; the RHDH operator is shared with
-`openshift_automation_portal` through `openshift_developer_hub_operator`. Generic: URLs, registry credentials and the
+`openshift_automation_portal` through `openshift_automation_developer_hub_operator`. Generic: URLs, registry credentials and the
 certificate authority (CA) are discovered from the cluster and the job's credentials when left empty.
 
 Sources: AAP 2.7 extend guide, "Ansible plug-ins for Red Hat Developer Hub" (OCI delivery, sidecar, plug-in settings);
 RHDH 1.10 "Installing Red Hat Developer Hub on OpenShift Container Platform" and "Configuring Red Hat Developer Hub"
 (operator, Backstage custom resource (CR), presets).
 
-1. **RHDH operator** through `openshift_developer_hub_operator` (installs it or adopts an existing Subscription).
+1. **RHDH operator** through `openshift_automation_developer_hub_operator` (installs it or adopts an existing Subscription).
 2. **AAP sign-in and plug-in token**: an AAP OAuth application (authorization code, confidential) and an AAP API token
    with write (read and write) scope, stored right away in Secret `<name>-secrets` (`AAP_HOST_URL`, `AAP_TOKEN`,
    `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`, `BACKEND_SECRET` generated once, `ENABLE_AUTH_PROVIDER_MODULE_OVERRIDE`).
@@ -54,7 +54,7 @@ See `defaults/main.yml`. Inputs normally supplied by the job template survey:
 | Variable | Default | Notes |
 |---|---|---|
 | `openshift_automation_developer_hub_namespace` / `_name` | `developer-hub` / `developer-hub` | |
-| `openshift_automation_developer_hub_manage_operator` | `true` | Shared role; its `openshift_developer_hub_operator_*` variables apply |
+| `openshift_automation_developer_hub_manage_operator` | `true` | Shared role; its `openshift_automation_developer_hub_operator_*` variables apply |
 | `openshift_automation_developer_hub_route_host` | `""` | Empty = `backstage-<name>-<namespace>.<apps domain>` |
 | `openshift_automation_developer_hub_lightspeed_enabled` | `false` | Developer Lightspeed preset (needs an LLM provider) |
 | `openshift_automation_developer_hub_platform_url` / `_platform_token` | `""` | Empty = `aap_hostname` / `aap_token` |

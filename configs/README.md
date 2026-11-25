@@ -24,7 +24,7 @@ Dependencies between areas: `cve_remediation` needs an Automation Orchestrator (
 and an LLM provider integration (from the integration areas or set up by hand). AO itself can run anywhere: set
 `site_cve_remediation_workflow_credentials: []` and give the AO URL, admin password and certificate authority (CA) in the
 survey of "Configure CVE remediation workflow"; no OpenShift access is needed then. `automation_developer_hub` is independent too; it and
-`automation_portal` share the Red Hat Developer Hub operator (role `openshift_developer_hub_operator`, which adopts an
+`automation_portal` share the Red Hat Developer Hub operator (role `openshift_automation_developer_hub_operator`, which adopts an
 existing install). `automation_mcp` is independent as well (it changes `spec.mcp` of the AAP custom resource), and so is
 `automation_intelligent_assistant` (`spec.lightspeed`). `automation_portal` is independent of AO:
 it needs only an AAP for the portal to connect to (this job's AAP credential). `platform_management` changes AAP
@@ -61,6 +61,7 @@ ansible-playbook playbooks/initialize_automation_platform.yml -e @/path/to/site.
 | `site_automation_developer_hub_admin_users` / `_super_users` | `""` | Developer Hub RBAC administrators / super users, `user:default/<AAP username>` (automation_developer_hub) |
 | `site_automation_platform_operator_channel` | `stable-2.7` | AAP operator Subscription channel (survey default of the configure job template; a different channel on an existing Subscription fails unless allowed in the survey, because it upgrades AAP) |
 | `site_openshift_virtual_machine_inventory` / `_namespaces` | `"false"` / `""` | survey defaults of the configure job template: create the inventory "Configuration as code - OpenShift virtual machines", and the namespaces it reads (empty = all) |
+| `site_resource_profile` | `default` | `small` = low CPU requests for the portal, Developer Hub, intelligent assistant and Automation Orchestrator (survey default of their install job templates; limits unchanged) |
 | `site_automation_mcp_allow_write_operations` | `"false"` | `"true"` = MCP server tools may change AAP (survey default; automation_mcp) |
 | `site_automation_intelligent_assistant_llm_provider_type` / `_llm_url` / `_llm_model` | `rhoai_vllm` / `""` / `""` | automation intelligent assistant LLM survey defaults (automation_intelligent_assistant); the token stays a survey password |
 | `site_automation_orchestrator_llm_base_url` | `""` | LLM provider base URL (survey default; automation_orchestrator_llm_integration), so a rerun only needs the API key |

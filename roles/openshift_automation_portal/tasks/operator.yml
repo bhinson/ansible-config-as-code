@@ -3,9 +3,9 @@
 # is managed in one place (the portal operator would otherwise create its own Subscription in openshift-operators).
 - name: Operator | Install or adopt the Red Hat Developer Hub operator
   ansible.builtin.include_role:
-    name: openshift_developer_hub_operator
+    name: openshift_automation_developer_hub_operator
   vars:
-    openshift_developer_hub_operator_validate_certs: "{{ openshift_automation_portal_validate_certs }}"
+    openshift_automation_developer_hub_operator_validate_certs: "{{ openshift_automation_portal_validate_certs }}"
   when: openshift_automation_portal_manage_developer_hub_operator | bool
 
 # The operator supports OwnNamespace, SingleNamespace and AllNamespaces. The install guide installs it into the portal

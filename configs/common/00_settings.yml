@@ -74,6 +74,10 @@ site_automation_portal_collection_repositories: ""
 site_developer_hub_operator_channel: fast
 site_automation_developer_hub_admin_users: ""
 site_automation_developer_hub_super_users: ""
+# Resource requests profile (survey default of the install job templates for the portal, Developer Hub, intelligent
+# assistant and Automation Orchestrator): "default" = operator requests; "small" = reserve little CPU on small or
+# single-node clusters (limits unchanged).
+site_resource_profile: default
 # MCP server survey default (automation_mcp): "true" lets AI agents launch jobs and change AAP (still limited by each
 # user's permissions); "false" = read-only tools.
 site_automation_mcp_allow_write_operations: "false"

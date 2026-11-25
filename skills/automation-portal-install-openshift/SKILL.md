@@ -19,7 +19,7 @@ operator" (the Helm chart chapter is the other, older method; don't mix them).
   validates the Secrets, generates the dynamic plugin config and creates a `Backstage` CR; the **RHDH operator**
   turns that into the Deployment, Service, Route and local PostgreSQL. The portal operator installs RHDH itself if missing
   (OLM Subscription, or ClusterExtension on OLM v1); an existing RHDH install is reused. The role installs or adopts the
-  RHDH operator first with the shared `openshift_developer_hub_operator` role (see
+  RHDH operator first with the shared `openshift_automation_developer_hub_operator` role (see
   `skills/automation-developer-hub-install-openshift`), so the portal operator never creates a second Subscription.
 - Package `automation-portal-operator` in `redhat-operators`, channel `fast`. Install modes Own/Single/AllNamespaces;
   the role uses OwnNamespace in the portal namespace, like the guide.

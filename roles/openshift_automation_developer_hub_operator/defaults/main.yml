@@ -1,5 +1,5 @@
 ---
-# openshift_developer_hub_operator: install (or adopt) the Red Hat Developer Hub (RHDH) operator. Shared by the roles
+# openshift_automation_developer_hub_operator: install (or adopt) the Red Hat Developer Hub (RHDH) operator. Shared by the roles
 # that run on RHDH: openshift_automation_developer_hub (Developer Hub with the Ansible plug-ins) and
 # openshift_automation_portal (Ansible automation portal).
 # RHDH 1.10 docs ("Install the Red Hat Developer Hub Operator"): channel fast or fast-<version>, All namespaces install
@@ -8,17 +8,17 @@
 # portal operator in openshift-operators), it is adopted: its channel, approval and source are set from these
 # variables and no second Subscription is created.
 
-openshift_developer_hub_operator_namespace: rhdh-operator
-openshift_developer_hub_operator_subscription_name: rhdh
-openshift_developer_hub_operator_package: rhdh
+openshift_automation_developer_hub_operator_namespace: rhdh-operator
+openshift_automation_developer_hub_operator_subscription_name: rhdh
+openshift_automation_developer_hub_operator_package: rhdh
 # fast = every update; fast-<version> (for example fast-1.10) = z-stream updates of that version only
-openshift_developer_hub_operator_channel: fast
-openshift_developer_hub_operator_approval: Automatic
-openshift_developer_hub_operator_source: redhat-operators
+openshift_automation_developer_hub_operator_channel: fast
+openshift_automation_developer_hub_operator_approval: Automatic
+openshift_automation_developer_hub_operator_source: redhat-operators
 
 # Verify the cluster API certificate on this role's Kubernetes calls
-openshift_developer_hub_operator_validate_certs: true
+openshift_automation_developer_hub_operator_validate_certs: true
 
-openshift_developer_hub_operator_wait_retries: 60
-openshift_developer_hub_operator_wait_delay: 10
+openshift_automation_developer_hub_operator_wait_retries: 60
+openshift_automation_developer_hub_operator_wait_delay: 10
 ...

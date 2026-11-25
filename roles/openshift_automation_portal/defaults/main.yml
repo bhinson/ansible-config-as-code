@@ -14,8 +14,8 @@ openshift_automation_portal_operator_channel: fast
 openshift_automation_portal_operator_approval: Automatic
 openshift_automation_portal_operator_source: redhat-operators
 
-# Install or adopt the Red Hat Developer Hub operator with the shared role openshift_developer_hub_operator (its
-# openshift_developer_hub_operator_* variables apply); false = leave it to the automation portal operator
+# Install or adopt the Red Hat Developer Hub operator with the shared role openshift_automation_developer_hub_operator (its
+# openshift_automation_developer_hub_operator_* variables apply); false = leave it to the automation portal operator
 openshift_automation_portal_manage_developer_hub_operator: true
 
 # --- instance ---
@@ -78,6 +78,19 @@ openshift_automation_portal_ca_certificate: ""
 # --- anything else in the AutomationPortal spec (recursively merged over the generated spec), for example
 #     {database: {enableLocalDb: false, authSecretName: portal-db-credentials}} ---
 openshift_automation_portal_spec_overrides: {}
+
+# --- resource requests ---
+# default = the operator's requests (portal 250m CPU, Ansible dev tools sidecar 1 CPU); small = reserve little CPU for
+# small or single-node clusters (requests only; limits stay as the operator sets them). The PostgreSQL pod keeps the
+# operator's requests (the AutomationPortal resource has no setting for it).
+openshift_automation_portal_resource_profile: default
+openshift_automation_portal_small_resources:
+  portal:
+    requests: {cpu: 50m, memory: 512Mi}
+    limits: {cpu: "1", memory: 2560Mi}
+  devtools:
+    requests: {cpu: 50m, memory: 256Mi}
+    limits: {cpu: 2500m, memory: 2560Mi}
 
 # --- waits ---
 openshift_automation_portal_wait_retries: 60

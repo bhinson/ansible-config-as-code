@@ -85,4 +85,13 @@ controller_templates__automation_orchestrator_install:
           variable: openshift_automation_orchestrator_admin_password
           type: password
           required: false
+        - question_name: Resource requests
+          question_description: >-
+            default = the operator's CPU and memory requests; small = reserve little CPU (for small or single-node
+            clusters; limits unchanged)
+          variable: openshift_automation_orchestrator_resource_profile
+          type: multiplechoice
+          choices: [default, small]
+          required: true
+          default: "{{ site_resource_profile }}"
 ...

@@ -35,7 +35,7 @@ Red Hat certified collections first, Red Hat validated content second, and commu
 | `roles/openshift_automation_intelligent_assistant/` | Chatbot configuration Secret + `spec.lightspeed` through the AAP operator (generic) |
 | `playbooks/openshift_automation_developer_hub.yml` | Red Hat Developer Hub with the Ansible plug-ins on OpenShift (AAP sign-in, plug-in token) |
 | `roles/openshift_automation_developer_hub/` | Deploy and connect Developer Hub with the Ansible plug-ins (generic) |
-| `roles/openshift_developer_hub_operator/` | Install or adopt the Red Hat Developer Hub operator (shared by the Developer Hub and portal roles) |
+| `roles/openshift_automation_developer_hub_operator/` | Install or adopt the Red Hat Developer Hub operator (shared by the Developer Hub and portal roles) |
 | `playbooks/cve_remediation_assess.yml`, `cve_remediation_apply.yml` | Host playbooks the workflow launches (assess read-only; apply after approval) |
 | `configs/` | AAP configuration data by area (see `configs/README.md`) |
 | `playbooks/initialize_automation_platform.yml` | Initialize AAP (ansible-core only) and launch the configure job template |

@@ -42,6 +42,28 @@ openshift_automation_orchestrator_postgres_ssl_mode: require
 # Verify the cluster API certificate on this role's Kubernetes calls
 openshift_automation_orchestrator_validate_certs: true
 
+# --- resource requests ---
+# default = the operator's requests (backend, worker and background worker 250m CPU each, Temporal 500m) and 100m for the
+# PostgreSQL this role deploys; small = reserve little CPU for small or single-node clusters (requests only; the memory
+# limits stay as the operator sets them). Replica counts are unchanged.
+openshift_automation_orchestrator_resource_profile: default
+openshift_automation_orchestrator_small_resources:
+  backend:
+    requests: {cpu: 50m, memory: 256Mi}
+    limits: {memory: 2Gi}
+  backgroundWorker:
+    requests: {cpu: 50m, memory: 256Mi}
+    limits: {memory: 1Gi}
+  worker:
+    requests: {cpu: 50m, memory: 256Mi}
+    limits: {memory: 2Gi}
+  temporal:
+    requests: {cpu: 100m, memory: 512Mi}
+    limits: {memory: 4Gi}
+  postgres:
+    requests: {cpu: 50m, memory: 512Mi}
+
+
 # --- waits ---
 openshift_automation_orchestrator_wait_retries: 60
 openshift_automation_orchestrator_wait_delay: 20

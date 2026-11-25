@@ -2,13 +2,13 @@
 # openshift_automation_developer_hub: Red Hat Developer Hub (RHDH) on OpenShift with the Ansible plug-ins for Red Hat
 # Developer Hub (AAP 2.7 docs, "Ansible plug-ins for Red Hat Developer Hub", OCI delivery), connected to an existing
 # Ansible Automation Platform (AAP):
-#   - RHDH operator through the shared role openshift_developer_hub_operator
+#   - RHDH operator through the shared role openshift_automation_developer_hub_operator
 #   - AAP OAuth application (sign-in with AAP accounts) and an AAP API token (read/write) for the plug-ins
 #   - Secrets: environment variables, registry auth for the OCI plug-ins, certificate authority (CA) bundle
 #   - app-config and dynamic plug-in ConfigMaps, Backstage custom resource (CR) with the Ansible dev tools sidecar
 # Everything is discovered from the cluster or the job's credentials when left empty.
 
-# --- operator (shared role; its openshift_developer_hub_operator_* variables apply) ---
+# --- operator (shared role; its openshift_automation_developer_hub_operator_* variables apply) ---
 openshift_automation_developer_hub_manage_operator: true
 
 # --- instance ---
@@ -81,6 +81,19 @@ openshift_automation_developer_hub_ca_certificate: ""
 # --- anything else, recursively merged over the generated configuration ---
 openshift_automation_developer_hub_app_config_overrides: {}
 openshift_automation_developer_hub_backstage_spec_overrides: {}
+
+# --- resource requests ---
+# default = the operator's requests for Developer Hub (250m CPU) and openshift_automation_developer_hub_devtools_resources
+# for the sidecar (1 CPU); small = reserve little CPU for small or single-node clusters (requests only; limits unchanged).
+# The PostgreSQL pod keeps the operator's requests (the Backstage resource has no setting for it).
+openshift_automation_developer_hub_resource_profile: default
+openshift_automation_developer_hub_small_resources:
+  developer_hub:
+    requests: {cpu: 50m, memory: 512Mi}
+    limits: {cpu: "1", memory: 2560Mi}
+  devtools:
+    requests: {cpu: 50m, memory: 256Mi}
+    limits: {cpu: 2500m, memory: 2560Mi}
 
 # --- waits ---
 openshift_automation_developer_hub_wait_retries: 60

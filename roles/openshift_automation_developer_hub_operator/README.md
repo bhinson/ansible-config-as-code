@@ -1,4 +1,4 @@
-# openshift_developer_hub_operator
+# openshift_automation_developer_hub_operator
 
 Installs, or adopts, the Red Hat Developer Hub (RHDH) operator. Shared by the roles that run on RHDH:
 `openshift_automation_developer_hub` (Developer Hub with the Ansible plug-ins) and `openshift_automation_portal`
@@ -14,7 +14,7 @@ RHDH 1.10 docs, "Install the Red Hat Developer Hub Operator": channel `fast` (ev
    has one, and the Subscription.
 3. Waits for the ClusterServiceVersion to succeed and for the `backstages.rhdh.redhat.com` CRD.
 
-Sets `openshift_developer_hub_operator_result` (`namespace`, `subscription`, `cluster_service_version`, `adopted`).
+Sets `openshift_automation_developer_hub_operator_result` (`namespace`, `subscription`, `cluster_service_version`, `adopted`).
 
 Uses `redhat.openshift` (applies objects) and `kubernetes.core` (lookups), both Red Hat certified. Authentication:
 `K8S_AUTH_HOST`, `K8S_AUTH_API_KEY`, `K8S_AUTH_SSL_CA_CERT`; needs cluster-admin (OLM objects).
@@ -23,12 +23,12 @@ Uses `redhat.openshift` (applies objects) and `kubernetes.core` (lookups), both 
 
 | Variable | Default | Notes |
 |---|---|---|
-| `openshift_developer_hub_operator_namespace` | `rhdh-operator` | Only used for a new install |
-| `openshift_developer_hub_operator_subscription_name` | `rhdh` | Only used for a new install |
-| `openshift_developer_hub_operator_channel` | `fast` | `fast-1.10` keeps the 1.10 z-stream |
-| `openshift_developer_hub_operator_approval` | `Automatic` | `Manual` holds updates for approval |
-| `openshift_developer_hub_operator_source` | `redhat-operators` | |
-| `openshift_developer_hub_operator_validate_certs` | `true` | Verify the cluster API certificate |
+| `openshift_automation_developer_hub_operator_namespace` | `rhdh-operator` | Only used for a new install |
+| `openshift_automation_developer_hub_operator_subscription_name` | `rhdh` | Only used for a new install |
+| `openshift_automation_developer_hub_operator_channel` | `fast` | `fast-1.10` keeps the 1.10 z-stream |
+| `openshift_automation_developer_hub_operator_approval` | `Automatic` | `Manual` holds updates for approval |
+| `openshift_automation_developer_hub_operator_source` | `redhat-operators` | |
+| `openshift_automation_developer_hub_operator_validate_certs` | `true` | Verify the cluster API certificate |
 
 Removing the operator is not automated; the automation portal upgrade guide notes that its RHDH Subscription stays
 behind (`oc delete subscription rhdh -n <namespace>`, then the ClusterServiceVersion).
