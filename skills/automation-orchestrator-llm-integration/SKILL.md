@@ -53,3 +53,11 @@ job template "Automation Orchestrator | Configure LLM provider integration"). Do
   timeout is 10 seconds by default (AO **Settings > Integrations**).
 - Integration shows Available but agent steps fail: transient provider issues; see the configure guide entry
   "LLM provider unreachable during execution".
+
+## Model choice for agent steps with a response schema
+AO 2026.8 fills an agent step's `response_schema` through LangChain `with_structured_output(..., method="json_mode")`:
+the provider gets `response_format: {"type": "json_object"}` and the schema only in the prompt, not a strict JSON
+schema. Models that handle JSON mode badly break the workflow at the next step that reads a field. Seen with
+OpenAI's open-weight gpt-oss model (120B) served by vLLM behind a LiteLLM proxy: garbled keys (`final{`, `severit` instead of `route`, `severity`),
+so a switch step failed with "Attribute 'route' not found"; `qwen3-14b` was reliable. Test a model in JSON mode
+(several runs) before pinning it in a workflow; a model that passes strict JSON schema tests can still fail here.
