@@ -33,9 +33,10 @@ certified/validated, private hub, Galaxy, in that order), so the repo holds no g
 ## Layout
 - `playbooks/` – entry points (`openshift_*` for OpenShift and for applying the AAP configuration, `export_automation_platform.yml`;
   `configure_automation_platform.yml` is only an alias of `openshift_automation_platform.yml`).
-- `roles/<platform>_<thing>/` – our roles: `openshift_automation_platform` (applies `configs/` with infra.aap_configuration.dispatch,
-  optional OpenShift Virtualization inventory with a read-only service account; job template "Configuration as code |
-  Apply Ansible Automation Platform configuration"), `openshift_automation_orchestrator` (install Automation Orchestrator (AO)), `automation_orchestrator_configuration` (connect AO to AAP),
+- `roles/<platform>_<thing>/` – our roles: `openshift_automation_platform` (installs/adopts the AAP operator through the shared
+  `openshift_ansible_platform_operator`, applies `configs/` with infra.aap_configuration.dispatch, optional OpenShift
+  Virtualization inventory with a read-only service account, stopped VMs synced as disabled hosts; job template
+  "Configuration as code | Apply Ansible Automation Platform configuration"), `openshift_automation_orchestrator` (install Automation Orchestrator (AO)), `automation_orchestrator_configuration` (connect AO to AAP),
   `automation_orchestrator_llm_integration` (connect AO to a large language model (LLM) provider),
   `automation_orchestrator_cve_remediation` (AO CVE remediation workflow; its job templates run
   `playbooks/cve_remediation_assess.yml` / `cve_remediation_apply.yml` on managed hosts),

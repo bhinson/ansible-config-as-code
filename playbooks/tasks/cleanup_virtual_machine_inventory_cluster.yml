@@ -1,0 +1,68 @@
+---
+# Cluster part of cleanup_automation_platform.yml: the read-only service account that role openshift_automation_platform
+# creates for the OpenShift virtual machines inventory. Plain Kubernetes REST calls (ansible-core only).
+# __cleanup_cluster_delete: false = look up and report; true = delete what the lookup found.
+- name: Cleanup cluster | Look up the objects
+  when: not __cleanup_cluster_delete
+  module_defaults:
+    ansible.builtin.uri:
+      ca_path: "{{ cleanup_automation_platform_openshift_api_ca_file | default(omit, true) }}"
+      validate_certs: "{{ cleanup_automation_platform_openshift_validate_certs | bool }}"
+      headers:
+        Authorization: "Bearer {{ cleanup_automation_platform_openshift_api_token }}"
+  vars:
+    __cleanup_namespace: "{{ openshift_automation_platform_virtual_machine_inventory_service_account_namespace }}"
+    __cleanup_service_account: "{{ openshift_automation_platform_virtual_machine_inventory_service_account }}"
+    __cleanup_rbac: /apis/rbac.authorization.k8s.io/v1
+  block:
+    - name: Cleanup cluster | Find the labelled role bindings, cluster role bindings and cluster roles
+      ansible.builtin.uri:
+        url: >-
+          {{ cleanup_automation_platform_openshift_api_url }}{{ __cleanup_rbac }}/{{ item }}?labelSelector={{
+          'app.kubernetes.io/component=virtual-machine-inventory,app.kubernetes.io/managed-by=ansible-config-as-code'
+          | urlencode }}
+      loop: [rolebindings, clusterrolebindings, clusterroles]
+      register: __cleanup_rbac_lookups
+      check_mode: false
+
+    - name: Cleanup cluster | Look up the service account namespace
+      ansible.builtin.uri:
+        url: "{{ cleanup_automation_platform_openshift_api_url }}/api/v1/namespaces/{{ __cleanup_namespace }}"
+        status_code: [200, 404]
+      register: __cleanup_namespace_lookup
+      check_mode: false
+
+    - name: Cleanup cluster | List the API paths to delete
+      ansible.builtin.set_fact:
+        __cleanup_cluster_paths: >-
+          {{ (__cleanup_rbac_lookups.results[0].json['items']
+              | map(attribute='metadata.namespace') | map('regex_replace', '^(.*)$', __cleanup_rbac ~ '/namespaces/\1/rolebindings/')
+              | zip(__cleanup_rbac_lookups.results[0].json['items'] | map(attribute='metadata.name')) | map('join') | list)
+             + (__cleanup_rbac_lookups.results[1].json['items'] | map(attribute='metadata.name')
+                | map('regex_replace', '^', __cleanup_rbac ~ '/clusterrolebindings/') | list)
+             + (__cleanup_rbac_lookups.results[2].json['items'] | map(attribute='metadata.name')
+                | map('regex_replace', '^', __cleanup_rbac ~ '/clusterroles/') | list)
+             + ([] if __cleanup_namespace_lookup.status != 200
+                else ['/api/v1/namespaces/' ~ __cleanup_namespace]
+                if ((__cleanup_namespace_lookup.json.metadata.annotations | default({}))['ansible-config-as-code/created-by']
+                    | default('')) == 'openshift_automation_platform'
+                else ['/api/v1/namespaces/' ~ __cleanup_namespace ~ '/secrets/' ~ __cleanup_service_account ~ '-token',
+                      '/api/v1/namespaces/' ~ __cleanup_namespace ~ '/serviceaccounts/' ~ __cleanup_service_account]) }}
+
+    - name: Cleanup cluster | Report the plan
+      ansible.builtin.debug:
+        msg: "Delete from the cluster: {{ __cleanup_cluster_paths }}"
+
+- name: Cleanup cluster | Delete the objects
+  ansible.builtin.uri:
+    url: "{{ cleanup_automation_platform_openshift_api_url }}{{ item }}"
+    method: DELETE
+    ca_path: "{{ cleanup_automation_platform_openshift_api_ca_file | default(omit, true) }}"
+    validate_certs: "{{ cleanup_automation_platform_openshift_validate_certs | bool }}"
+    headers:
+      Authorization: "Bearer {{ cleanup_automation_platform_openshift_api_token }}"
+    status_code: [200, 202, 404]
+  loop: "{{ __cleanup_cluster_paths }}"
+  changed_when: true
+  when: __cleanup_cluster_delete
+...

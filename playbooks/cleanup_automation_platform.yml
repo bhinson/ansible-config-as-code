@@ -8,7 +8,10 @@
 #   2. inventory sources, then inventories (their hosts and groups go with them)
 #   3. projects, credentials, then the custom credential types (global)
 # With configs/common, also the optional inventory "Configuration as code - OpenShift virtual machines", its source and
-# credential (role openshift_automation_platform); its service account and role bindings on the cluster stay.
+# credential (role openshift_automation_platform), and its service account on the cluster: the role bindings, cluster
+# role bindings and cluster role labelled app.kubernetes.io/component=virtual-machine-inventory, plus the namespace if
+# the role created it (annotation ansible-config-as-code/created-by), else only the service account and its token
+# Secret. Needs K8S_AUTH_HOST / K8S_AUTH_API_KEY / K8S_AUTH_SSL_CA_CERT; skipped without them. The AAP operator stays.
 # Job history is kept (the playbook deletes no jobs), but AAP itself removes a project's syncs and an inventory source's
 # syncs together with the project or source; playbook runs stay. Objects are never matched by pattern, so anything else in
 # AAP is left alone. Waits for running project/inventory syncs of those objects; other running jobs make AAP refuse
@@ -16,7 +19,7 @@
 # --check lists what would be deleted and stops.
 #
 # Inputs: AAP_HOSTNAME, AAP_TOKEN (AAP administrator), AAP_VALIDATE_CERTS (default true), AAP_CA_FILE (optional; falls
-# back to SSL_CERT_FILE), and the same site values used to initialize: -e @/path/to/site.yml
+# back to SSL_CERT_FILE), K8S_AUTH_* (optional, see above), and the same site values used to initialize: -e @/path/to/site.yml
 # Usage:  ansible-playbook playbooks/cleanup_automation_platform.yml -e @/path/to/site.yml [--check]
 - name: Clean up configuration as code objects from Ansible Automation Platform
   hosts: localhost
@@ -36,6 +39,10 @@
       {{ lookup('ansible.builtin.env', 'AAP_CA_FILE') or lookup('ansible.builtin.env', 'SSL_CERT_FILE') }}
     # true = remove only the selected areas' objects and keep the shared project, credentials, inventory and configure job template
     cleanup_automation_platform_keep_common: false
+    cleanup_automation_platform_openshift_api_url: "{{ lookup('ansible.builtin.env', 'K8S_AUTH_HOST') | regex_replace('/+$', '') }}"
+    cleanup_automation_platform_openshift_api_token: "{{ lookup('ansible.builtin.env', 'K8S_AUTH_API_KEY') }}"
+    cleanup_automation_platform_openshift_api_ca_file: "{{ lookup('ansible.builtin.env', 'K8S_AUTH_SSL_CA_CERT') }}"
+    cleanup_automation_platform_openshift_validate_certs: true
     cleanup_automation_platform_wait_retries: 60
     cleanup_automation_platform_wait_delay: 5
     __cleanup_api: "{{ cleanup_automation_platform_url }}/api/controller/v2"
@@ -120,6 +127,15 @@
               | zip((__cleanup_found | default([])) | map(attribute='name')) | map('join', ': ') | list }}"
           - "Not found (already gone): {{ __cleanup_lookups.results | rejectattr('json.count', 'equalto', 1) | map(attribute='item') | list }}"
 
+    - name: Cleanup | Plan the removal of the virtual machines inventory service account from the cluster
+      ansible.builtin.include_tasks: tasks/cleanup_virtual_machine_inventory_cluster.yml
+      vars:
+        __cleanup_cluster_delete: false
+      when:
+        - not (cleanup_automation_platform_keep_common | bool)
+        - cleanup_automation_platform_openshift_api_url is match('https://.+')
+        - cleanup_automation_platform_openshift_api_token | length > 0
+
     - name: Cleanup | Dry run - stop here
       ansible.builtin.meta: end_play
       when: ansible_check_mode
@@ -180,4 +196,10 @@
         label: "{{ item.endpoint }}: {{ item.name }}"
       register: __cleanup_left
       failed_when: __cleanup_left.status != 404
+
+    - name: Cleanup | Remove the virtual machines inventory service account from the cluster
+      ansible.builtin.include_tasks: tasks/cleanup_virtual_machine_inventory_cluster.yml
+      vars:
+        __cleanup_cluster_delete: true
+      when: __cleanup_cluster_paths is defined
 ...

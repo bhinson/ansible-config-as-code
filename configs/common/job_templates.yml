@@ -3,7 +3,7 @@
 controller_templates__common:
   # Created first by playbooks/initialize_automation_platform.yml; managed here afterwards. Its extra vars are the site_*
   # values of the run that applies this file, so the site values stay in AAP, not in the repo.
-  # The OpenShift API credential is only used when the survey asks for the virtual machines inventory.
+  # The OpenShift API credential is for the AAP operator check and the optional virtual machines inventory.
   - name: Configuration as code | Apply Ansible Automation Platform configuration
     description: >-
       Apply configs/ from this repo (common and the selected areas) with infra.aap_configuration.dispatch, optionally
@@ -21,12 +21,28 @@ controller_templates__common:
     survey_enabled: true
     survey_spec:
       name: Configuration as code
-      description: Optional objects created by openshift_automation_platform in addition to configs/
+      description: Operator and optional objects handled by openshift_automation_platform in addition to configs/
       spec:
+        - question_name: Ansible Automation Platform operator channel
+          question_description: >-
+            Subscription channel of the Ansible Automation Platform operator (installed if missing, adopted if present)
+          variable: openshift_ansible_platform_operator_channel
+          type: text
+          required: true
+          default: "{{ site_automation_platform_operator_channel }}"
+        - question_name: Allow an operator channel change
+          question_description: >-
+            true = change the channel of an existing operator Subscription, which upgrades Ansible Automation Platform
+            (take a backup first); false = fail if it differs
+          variable: openshift_ansible_platform_operator_allow_channel_change
+          type: multiplechoice
+          choices: ["false", "true"]
+          required: true
+          default: "false"
         - question_name: Create the OpenShift virtual machines inventory
           question_description: >-
             true = create or update the inventory "Configuration as code - OpenShift virtual machines" (OpenShift
-            Virtualization source, synced when a job using it launches; not attached to any job template), its
+            Virtualization source, synced when a job using it launches, stopped virtual machines disabled; not attached to any job template), its
             credential and a read-only service account on the cluster; false = leave it alone
           variable: openshift_automation_platform_virtual_machine_inventory
           type: multiplechoice
@@ -47,7 +63,7 @@ controller_templates__common:
           required: true
           default: "true"
         - question_name: Verify TLS certificates from this job
-          question_description: This job's calls to the cluster API (virtual machines inventory only)
+          question_description: This job's calls to the cluster API (operator and virtual machines inventory)
           variable: openshift_automation_platform_validate_certs
           type: multiplechoice
           choices: ["true", "false"]

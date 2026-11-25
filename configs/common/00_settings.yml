@@ -71,6 +71,10 @@ site_automation_developer_hub_super_users: ""
 # MCP server survey default (automation_mcp): "true" lets AI agents launch jobs and change AAP (still limited by each
 # user's permissions); "false" = read-only tools.
 site_automation_mcp_allow_write_operations: "false"
+# Survey default of the configure job template: channel of the AAP operator Subscription (role
+# openshift_ansible_platform_operator installs it if missing; an existing Subscription on another channel makes the run
+# fail unless the survey allows the change, which upgrades AAP).
+site_automation_platform_operator_channel: stable-2.7
 # Survey defaults of the configure job template (role openshift_automation_platform): "true" creates the inventory
 # "Configuration as code - OpenShift virtual machines" (OpenShift Virtualization source, update on launch), and the
 # namespaces it reads (comma-separated; empty = every namespace).

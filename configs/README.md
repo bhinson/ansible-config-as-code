@@ -57,6 +57,7 @@ ansible-playbook playbooks/initialize_automation_platform.yml -e @/path/to/site.
 | `site_automation_portal_collections_enabled` / `_collection_repositories` | `"false"` / `""` | show the private automation hub's collections in the portal, and which hub repositories (automation_portal) |
 | `site_developer_hub_operator_channel` | `fast` | Red Hat Developer Hub operator channel (`fast-<version>` = z-stream only) (automation_developer_hub) |
 | `site_automation_developer_hub_admin_users` / `_super_users` | `""` | Developer Hub RBAC administrators / super users, `user:default/<AAP username>` (automation_developer_hub) |
+| `site_automation_platform_operator_channel` | `stable-2.7` | AAP operator Subscription channel (survey default of the configure job template; a different channel on an existing Subscription fails unless allowed in the survey, because it upgrades AAP) |
 | `site_openshift_virtual_machine_inventory` / `_namespaces` | `"false"` / `""` | survey defaults of the configure job template: create the inventory "Configuration as code - OpenShift virtual machines", and the namespaces it reads (empty = all) |
 | `site_automation_mcp_allow_write_operations` | `"false"` | `"true"` = MCP server tools may change AAP (survey default; automation_mcp) |
 | `site_private_automation_hub_url` | `https://aap.example.com` | your private automation hub (platform_management) |
@@ -75,7 +76,7 @@ tokens) and `vaulted_red_hat_automation_hub_token` (console.redhat.com offline t
 
 | Template | Area | Playbook | Credentials |
 |---|---|---|---|
-| Configuration as code \| Apply Ansible Automation Platform configuration | common | `openshift_automation_platform.yml` | Configuration as code - Ansible Automation Platform, OpenShift API (virtual machines inventory) |
+| Configuration as code \| Apply Ansible Automation Platform configuration | common | `openshift_automation_platform.yml` | Configuration as code - Ansible Automation Platform, OpenShift API (operator check, virtual machines inventory) |
 | Automation Orchestrator \| Install on OpenShift | automation_orchestrator_install | `openshift_automation_orchestrator.yml` | Configuration as code - OpenShift API |
 | Automation Orchestrator \| Configure Ansible Automation Platform integration | automation_orchestrator_integration | `automation_orchestrator_configuration.yml` | OpenShift API, Ansible Automation Platform |
 | Automation Orchestrator \| Configure LLM provider integration | automation_orchestrator_llm_integration | `automation_orchestrator_llm_integration.yml` | OpenShift API |

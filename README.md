@@ -16,7 +16,8 @@ Red Hat certified collections first, Red Hat validated content second, and commu
 |---|---|
 | `playbooks/openshift_automation_orchestrator.yml` | Install Red Hat Automation Orchestrator (AO) on OpenShift (operator, PostgreSQL, instance) |
 | `playbooks/openshift_automation_platform.yml` | Apply `configs/common` and the selected areas via `infra.aap_configuration.dispatch` (`configure_automation_platform.yml` is an alias) |
-| `roles/openshift_automation_platform/` | That configuration run, plus an optional OpenShift Virtualization virtual machines inventory (generic) |
+| `roles/openshift_automation_platform/` | That configuration run: AAP operator check, `configs/`, optional OpenShift Virtualization virtual machines inventory (generic) |
+| `roles/openshift_ansible_platform_operator/` | Install or adopt the AAP operator (included by the configuration run; an existing Subscription's channel changes only on request) |
 | `playbooks/sync_automation_hub.yml` | Sync private automation hub repositories (scheduled; area platform_management) |
 | `playbooks/export_automation_platform.yml` | Export the live AAP configuration to YAML (`infra.aap_configuration_extended.filetree_create`) |
 | `playbooks/automation_orchestrator_configuration.yml` | Connect AO to AAP (allowlists, integration, single sign-on) |

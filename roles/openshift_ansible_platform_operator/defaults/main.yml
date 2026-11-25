@@ -1,0 +1,29 @@
+---
+# openshift_ansible_platform_operator: install (or adopt) the Ansible Automation Platform (AAP) operator on OpenShift.
+# Included by openshift_automation_platform on every configuration run (include_role, no job template of its own).
+# AAP 2.7 install guide, "Install the Ansible Automation Platform Operator from the CLI": namespace
+# ansible-automation-platform (it should run only AAP), an OperatorGroup that targets that namespace, and a Subscription
+# to ansible-automation-platform-operator from redhat-operators.
+# If a Subscription for the package already exists in any namespace, it is adopted: no second Subscription is created and
+# only its channel is managed (see _allow_channel_change); its namespace, approval and source stay as they are.
+
+openshift_ansible_platform_operator_namespace: ansible-automation-platform
+openshift_ansible_platform_operator_group_name: ansible-automation-platform-operator
+openshift_ansible_platform_operator_subscription_name: ansible-automation-platform
+openshift_ansible_platform_operator_package: ansible-automation-platform-operator
+# stable-<version> (for example stable-2.7) or cluster-scoped-<version>, as listed in the install guide
+openshift_ansible_platform_operator_channel: stable-2.7
+openshift_ansible_platform_operator_approval: Automatic
+openshift_ansible_platform_operator_source: redhat-operators
+openshift_ansible_platform_operator_source_namespace: openshift-marketplace
+# A different channel on an existing Subscription upgrades AAP (take a backup first; AAP upgrade guide). The run fails
+# instead of changing it unless this is true.
+openshift_ansible_platform_operator_allow_channel_change: false
+
+# Verify the cluster API certificate on this role's Kubernetes calls
+openshift_ansible_platform_operator_validate_certs: true
+
+# A fresh install takes a few minutes; an adopted, healthy operator passes the checks at once
+openshift_ansible_platform_operator_wait_retries: 60
+openshift_ansible_platform_operator_wait_delay: 10
+...

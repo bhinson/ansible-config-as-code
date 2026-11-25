@@ -45,6 +45,14 @@
         name: "{{ openshift_automation_platform_virtual_machine_inventory_service_account_namespace }}"
       register: __automation_platform_namespace_lookup
 
+    - name: Virtual machine inventory | Remember whether this role owns the namespace
+      ansible.builtin.set_fact:
+        # a new namespace, or one an earlier run created (annotation kept); never a namespace that existed before
+        __automation_platform_namespace_owned: >-
+          {{ __automation_platform_namespace_lookup.resources | length == 0
+             or ((__automation_platform_namespace_lookup.resources[0].metadata.annotations | default({}))
+                 ['ansible-config-as-code/created-by'] | default('')) == 'openshift_automation_platform' }}
+
     # A dry run of objects in a namespace that doesn't exist yet fails, so check mode then plans only the cluster objects
     - name: Virtual machine inventory | Apply the namespace, service account, token Secret and role bindings  # noqa: fqcn[canonical]
       redhat.openshift.k8s:
@@ -58,13 +66,33 @@
         __automation_platform_cluster_objects: >-
           {{ lookup('ansible.builtin.template', 'virtual_machine_inventory.yml.j2') | ansible.builtin.from_yaml_all | list }}
 
-    - name: Virtual machine inventory | Remove the cluster-wide role binding (namespaces are listed)  # noqa: fqcn[canonical]
+    - name: Virtual machine inventory | Find this role's role bindings
+      kubernetes.core.k8s_info:
+        api_version: rbac.authorization.k8s.io/v1
+        kind: "{{ __automation_platform_binding_kind }}"
+        label_selectors:
+          - app.kubernetes.io/component=virtual-machine-inventory
+          - app.kubernetes.io/managed-by=ansible-config-as-code
+      loop: [RoleBinding, ClusterRoleBinding]
+      loop_control:
+        loop_var: __automation_platform_binding_kind
+      register: __automation_platform_bindings
+
+    # namespaces dropped from the list, or the cluster-wide binding once namespaces are listed
+    - name: Virtual machine inventory | Remove role bindings that are no longer wanted  # noqa: fqcn[canonical]
       redhat.openshift.k8s:
         state: absent
         api_version: rbac.authorization.k8s.io/v1
-        kind: ClusterRoleBinding
-        name: "{{ openshift_automation_platform_virtual_machine_inventory_cluster_role }}"
-      when: __automation_platform_namespaces | length > 0
+        kind: "{{ __automation_platform_binding.kind }}"
+        name: "{{ __automation_platform_binding.metadata.name }}"
+        namespace: "{{ __automation_platform_binding.metadata.namespace | default(omit) }}"
+      loop: >-
+        {{ (__automation_platform_bindings.results[0].resources
+            | rejectattr('metadata.namespace', 'in', __automation_platform_namespaces) | list)
+           + (__automation_platform_bindings.results[1].resources if __automation_platform_namespaces | length > 0 else []) }}
+      loop_control:
+        loop_var: __automation_platform_binding
+        label: "{{ __automation_platform_binding.kind }} {{ __automation_platform_binding.metadata.namespace | default('') }}"
 
     - name: Virtual machine inventory | Wait for the service account token
       kubernetes.core.k8s_info:
@@ -124,6 +152,9 @@
                    if __automation_platform_namespaces | length > 0 else {})
                   | combine(openshift_automation_platform_virtual_machine_inventory_source_variables, recursive=true))
                  | to_json }}
+            # hosts are disabled while their virtual machine isn't running (AAP sets enabled from this host variable)
+            enabled_var: "{{ openshift_automation_platform_virtual_machine_inventory_enabled_variable }}"
+            enabled_value: "{{ openshift_automation_platform_virtual_machine_inventory_enabled_value }}"
             overwrite: true
             overwrite_vars: true
             update_on_launch: true
