@@ -98,6 +98,8 @@
       controller_host: "{{ __x2ansible_platform_url }}"
       aap_token: "{{ __x2ansible_platform_token }}"
       validate_certs: "{{ openshift_automation_x2ansible_validate_certs | bool }}"
+      # The AAP credential injects an empty request timeout environment variable, which the modules can't parse
+      request_timeout: 30
   environment:
     SSL_CERT_FILE: "{{ __x2ansible_ca_file.path }}"
   block:
