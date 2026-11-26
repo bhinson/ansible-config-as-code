@@ -114,7 +114,15 @@
         # Send the key only when it is new (otherwise every run would report a change)
         update_secrets: "{{ __x2ansible_target_new_key | bool }}"
         state: present
+      register: __x2ansible_target_credential
+      failed_when: false
       no_log: true
+
+    # no_log hides the private key, and with it the error; show only the module's message
+    - name: Target VM | Stop if the machine credential failed
+      ansible.builtin.fail:
+        msg: "Machine credential: {{ __x2ansible_target_credential.msg | default('failed without a message') }}"
+      when: __x2ansible_target_credential.id is not defined
 
     - name: Target VM | Create the inventory
       ansible.controller.inventory:
