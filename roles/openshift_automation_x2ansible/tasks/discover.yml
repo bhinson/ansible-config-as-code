@@ -42,11 +42,18 @@
       - __x2ansible_github_sign_in or (openshift_automation_x2ansible_allow_guest_sign_in | bool)
       - not (__x2ansible_github_sign_in and __x2ansible_github_client_secret | length == 0)
       - >-
+        not (openshift_automation_x2ansible_target_vm | bool)
+        or (__x2ansible_platform_url is match('https?://.+') and __x2ansible_platform_token | length > 0)
+      - >-
+        openshift_automation_x2ansible_target_vm_activation_key | length == 0
+        or openshift_automation_x2ansible_target_vm_registration_organization | length > 0
+      - >-
         not (openshift_automation_x2ansible_publish_to_platform | bool)
         or (__x2ansible_platform_url is match('https?://.+') and __x2ansible_platform_token | length > 0)
     fail_msg: >-
       Need the LLM URL, token (the first time) and model; a GitHub OAuth app client ID and secret (or allow guest sign-in); and, to publish
-      to Ansible Automation Platform, its URL and a token (Red Hat Ansible Automation Platform credential).
+      or create the target virtual machine, the Ansible Automation Platform URL and a token (Red Hat Ansible Automation
+      Platform credential); a registration organization when an activation key is set.
     quiet: true
 
 - name: Discover | Read the cluster ingress domain

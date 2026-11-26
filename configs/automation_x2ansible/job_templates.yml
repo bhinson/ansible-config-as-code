@@ -86,6 +86,33 @@ controller_templates__automation_x2ansible:
           type: text
           required: true
           default: x2ansible
+        - question_name: Create the target virtual machine
+          question_description: >-
+            RHEL virtual machine (OpenShift Virtualization) plus an Ansible Automation Platform inventory and machine
+            credential, for running converted roles
+          variable: openshift_automation_x2ansible_target_vm
+          type: multiplechoice
+          choices: ["false", "true"]
+          required: true
+          default: "{{ site_automation_x2ansible_target_vm }}"
+        - question_name: Target virtual machine activation key
+          question_description: Registers the virtual machine with this activation key; empty = no registration
+          variable: openshift_automation_x2ansible_target_vm_activation_key
+          type: text
+          required: false
+          default: "{{ site_automation_x2ansible_target_vm_activation_key }}"
+        - question_name: Target virtual machine registration organization
+          question_description: Organization label (Satellite) or organization ID (Red Hat) for the activation key
+          variable: openshift_automation_x2ansible_target_vm_registration_organization
+          type: text
+          required: false
+          default: "{{ site_automation_x2ansible_target_vm_registration_organization }}"
+        - question_name: Target virtual machine Satellite server
+          question_description: Satellite host name (installs its katello-ca-consumer package first); empty = register to Red Hat
+          variable: openshift_automation_x2ansible_target_vm_registration_server
+          type: text
+          required: false
+          default: "{{ site_automation_x2ansible_target_vm_registration_server }}"
         - question_name: Verify TLS certificates from this job
           question_description: The job's calls to the cluster API and Ansible Automation Platform
           variable: openshift_automation_x2ansible_validate_certs

@@ -23,6 +23,7 @@ The x2a plug-ins and the convertor are community projects, not supported by Red 
 | Secret `<name>-secrets` | GitHub OAuth app, LLM and AAP settings (environment variables) |
 | ConfigMap `<name>-ca-bundle` | Cluster root CA + AAP CA, trusted by the backend and every Job |
 | ConfigMaps `<name>-app-config`, `<name>-dynamic-plugins`, Backstage `<name>` | The instance (Route `backstage-<name>`) |
+| Optional: VirtualMachine + Service `x2ansible-target`, Secret `x2ansible-target-ssh-key`, AAP machine credential + inventory "x2ansible - target virtual machine" | A RHEL host for running converted roles (registered with an activation key, to Satellite or Red Hat) |
 
 ## Inputs (see `defaults/main.yml`)
 
@@ -36,7 +37,13 @@ The x2a plug-ins and the convertor are community projects, not supported by Red 
 - Images: the convertor tag is pinned (`sha-<commit>`; upstream has no version tags); plug-in tag
   `bs_<Backstage version>__<plug-in version>` must match the Backstage version of the RHDH release.
 
+## Running a converted role
+
+After x2ansible publishes a migration, AAP has a project for it. Create a job template with that project, the inventory
+and the machine credential "x2ansible - target virtual machine", and launch it.
+
 ## Remove
 
 Delete the namespace (Jobs, Secrets and the database go with it), the ClusterRole and ClusterRoleBinding labelled
-`app.kubernetes.io/part-of=x2ansible`, the AAP user and the projects it published.
+`app.kubernetes.io/part-of=x2ansible`, the AAP user and the projects it published, the target VM's
+AAP inventory and credential, and its Satellite or Red Hat registration.

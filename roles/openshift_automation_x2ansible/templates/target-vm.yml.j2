@@ -1,0 +1,67 @@
+---
+# Target virtual machine for running converted roles from Ansible Automation Platform (OpenShift Virtualization).
+# RHEL from the cluster's boot source; cloud-init adds the SSH key and optionally registers it to a Satellite server or
+# Red Hat with an activation key. The Service gives AAP a stable host name (the VM's pod IP changes on restart).
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: {{ openshift_automation_x2ansible_target_vm_name }}
+  namespace: {{ openshift_automation_x2ansible_namespace }}
+spec:
+  runStrategy: Always
+  instancetype:
+    kind: VirtualMachineClusterInstancetype
+    name: {{ openshift_automation_x2ansible_target_vm_instancetype }}
+  preference:
+    kind: VirtualMachineClusterPreference
+    name: {{ openshift_automation_x2ansible_target_vm_preference }}
+  dataVolumeTemplates:
+    - metadata:
+        name: {{ openshift_automation_x2ansible_target_vm_name }}-rootdisk
+      spec:
+        sourceRef:
+          kind: DataSource
+          name: {{ openshift_automation_x2ansible_target_vm_data_source }}
+          namespace: openshift-virtualization-os-images
+        storage:
+          resources:
+            requests:
+              storage: {{ openshift_automation_x2ansible_target_vm_disk_size }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ openshift_automation_x2ansible_target_vm_name }}
+    spec:
+      domain:
+        devices: {}
+      volumes:
+        - name: rootdisk
+          dataVolume:
+            name: {{ openshift_automation_x2ansible_target_vm_name }}-rootdisk
+        - name: cloudinitdisk
+          cloudInitNoCloud:
+            userData: |
+              #cloud-config
+              user: {{ openshift_automation_x2ansible_target_vm_user }}
+              ssh_authorized_keys:
+                - {{ __x2ansible_target_public_key }}
+{% if openshift_automation_x2ansible_target_vm_activation_key | length > 0 %}
+              runcmd:
+{% if openshift_automation_x2ansible_target_vm_registration_server | length > 0 %}
+                - [sh, -c, "rpm -q katello-ca-consumer-{{ openshift_automation_x2ansible_target_vm_registration_server }} || rpm -Uvh http://{{ openshift_automation_x2ansible_target_vm_registration_server }}/pub/katello-ca-consumer-latest.noarch.rpm"]
+{% endif %}
+                - [subscription-manager, register, "--org={{ openshift_automation_x2ansible_target_vm_registration_organization }}", "--activationkey={{ openshift_automation_x2ansible_target_vm_activation_key }}"]
+{% endif %}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ openshift_automation_x2ansible_target_vm_name }}
+  namespace: {{ openshift_automation_x2ansible_namespace }}
+spec:
+  selector:
+    app.kubernetes.io/name: {{ openshift_automation_x2ansible_target_vm_name }}
+  ports:
+    - name: ssh
+      port: 22
+      targetPort: 22

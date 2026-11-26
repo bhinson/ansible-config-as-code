@@ -1,0 +1,133 @@
+---
+# Target virtual machine plus the Ansible Automation Platform (AAP) objects to run converted roles on it: a machine
+# credential with the VM's SSH key and an inventory with one host (the VM's Service). After x2ansible publishes a
+# project, create a job template from that project, this inventory and this credential.
+# The SSH key pair is generated once and kept in the Secret <target VM name>-ssh-key.
+
+- name: Target VM | Read the stored SSH key pair
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Secret
+    namespace: "{{ openshift_automation_x2ansible_namespace }}"
+    name: "{{ openshift_automation_x2ansible_target_vm_name }}-ssh-key"
+  register: __x2ansible_target_key_secret
+  no_log: true
+
+- name: Target VM | Generate an SSH key pair (first run only)
+  when: __x2ansible_target_key_secret.resources | length == 0
+  block:
+    - name: Target VM | Create a temporary directory for the key pair
+      ansible.builtin.tempfile:
+        state: directory
+      register: __x2ansible_target_key_dir
+
+    # No certified or validated module generates SSH keys (community.crypto isn't used); ssh-keygen ships with the EE.
+    - name: Target VM | Generate the key pair
+      ansible.builtin.command:
+        cmd: ssh-keygen -q -t ed25519 -N "" -C x2ansible-target -f {{ __x2ansible_target_key_dir.path }}/id_ed25519
+        creates: "{{ __x2ansible_target_key_dir.path }}/id_ed25519"
+
+    - name: Target VM | Read the key pair
+      ansible.builtin.slurp:
+        src: "{{ __x2ansible_target_key_dir.path }}/{{ __x2ansible_key_file }}"
+      loop: [id_ed25519, id_ed25519.pub]
+      loop_control:
+        loop_var: __x2ansible_key_file
+      register: __x2ansible_target_key_files
+      no_log: true
+
+    - name: Target VM | Store the key pair
+      redhat.openshift.k8s:  # noqa: fqcn[canonical]
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: "{{ openshift_automation_x2ansible_target_vm_name }}-ssh-key"
+            namespace: "{{ openshift_automation_x2ansible_namespace }}"
+          data:
+            ssh-privatekey: "{{ __x2ansible_target_key_files.results[0].content }}"
+            ssh-publickey: "{{ __x2ansible_target_key_files.results[1].content }}"
+      no_log: true
+  always:
+    - name: Target VM | Remove the temporary key directory
+      ansible.builtin.file:
+        path: "{{ __x2ansible_target_key_dir.path }}"
+        state: absent
+      when: __x2ansible_target_key_dir.path is defined
+
+- name: Target VM | Read the key pair from the Secret
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Secret
+    namespace: "{{ openshift_automation_x2ansible_namespace }}"
+    name: "{{ openshift_automation_x2ansible_target_vm_name }}-ssh-key"
+  register: __x2ansible_target_key
+  no_log: true
+
+- name: Target VM | Keep the keys
+  ansible.builtin.set_fact:
+    __x2ansible_target_private_key: "{{ __x2ansible_target_key.resources[0].data['ssh-privatekey'] | b64decode }}"
+    __x2ansible_target_public_key: "{{ __x2ansible_target_key.resources[0].data['ssh-publickey'] | b64decode | trim }}"
+    __x2ansible_target_new_key: "{{ __x2ansible_target_key_secret.resources | length == 0 }}"
+    __x2ansible_target_host: >-
+      {{ openshift_automation_x2ansible_target_vm_name }}.{{ openshift_automation_x2ansible_namespace }}.svc.cluster.local
+  no_log: true
+
+- name: Target VM | Apply the virtual machine and its Service
+  redhat.openshift.k8s:  # noqa: fqcn[canonical]
+    state: present
+    apply: true
+    definition: "{{ lookup('ansible.builtin.template', 'target-vm.yml.j2') | from_yaml_all | list }}"
+
+- name: Target VM | Wait for the virtual machine to be ready
+  kubernetes.core.k8s_info:
+    api_version: kubevirt.io/v1
+    kind: VirtualMachine
+    name: "{{ openshift_automation_x2ansible_target_vm_name }}"
+    namespace: "{{ openshift_automation_x2ansible_namespace }}"
+    wait: true
+    wait_condition:
+      type: Ready
+      status: "True"
+    wait_timeout: "{{ openshift_automation_x2ansible_wait_retries * openshift_automation_x2ansible_wait_delay }}"
+
+- name: Target VM | Create the Ansible Automation Platform credential and inventory
+  module_defaults:
+    group/ansible.controller.controller:
+      controller_host: "{{ __x2ansible_platform_url }}"
+      aap_token: "{{ __x2ansible_platform_token }}"
+      validate_certs: "{{ openshift_automation_x2ansible_validate_certs | bool }}"
+  environment:
+    SSL_CERT_FILE: "{{ __x2ansible_ca_file.path }}"
+  block:
+    - name: Target VM | Create the machine credential
+      ansible.controller.credential:
+        name: "{{ openshift_automation_x2ansible_target_vm_platform_name }}"
+        description: SSH key for the x2ansible target virtual machine
+        organization: "{{ openshift_automation_x2ansible_platform_organization }}"
+        credential_type: Machine
+        inputs:
+          username: "{{ openshift_automation_x2ansible_target_vm_user }}"
+          ssh_key_data: "{{ __x2ansible_target_private_key }}"
+          become_method: sudo
+        # Send the key only when it is new (otherwise every run would report a change)
+        update_secrets: "{{ __x2ansible_target_new_key | bool }}"
+        state: present
+      no_log: true
+
+    - name: Target VM | Create the inventory
+      ansible.controller.inventory:
+        name: "{{ openshift_automation_x2ansible_target_vm_platform_name }}"
+        description: The x2ansible target virtual machine, for running converted roles
+        organization: "{{ openshift_automation_x2ansible_platform_organization }}"
+        state: present
+
+    - name: Target VM | Add the virtual machine to the inventory
+      ansible.controller.host:
+        name: "{{ openshift_automation_x2ansible_target_vm_name }}"
+        inventory: "{{ openshift_automation_x2ansible_target_vm_platform_name }}"
+        variables:
+          ansible_host: "{{ __x2ansible_target_host }}"
+        state: present
+...

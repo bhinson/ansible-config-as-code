@@ -58,6 +58,23 @@ openshift_automation_x2ansible_platform_token: ""
 # Certificate authority (PEM) for the AAP URL; empty = the OpenShift ingress certificate authority
 openshift_automation_x2ansible_ca_certificate: ""
 
+# --- target virtual machine (OpenShift Virtualization) for running converted roles from AAP ---
+openshift_automation_x2ansible_target_vm: false
+openshift_automation_x2ansible_target_vm_name: x2ansible-target
+# Boot source (DataSource in openshift-virtualization-os-images), cluster instance type and preference
+openshift_automation_x2ansible_target_vm_data_source: rhel9
+openshift_automation_x2ansible_target_vm_instancetype: u1.small
+openshift_automation_x2ansible_target_vm_preference: rhel.9
+openshift_automation_x2ansible_target_vm_disk_size: 30Gi
+openshift_automation_x2ansible_target_vm_user: cloud-user
+# Registration through cloud-init: activation key and organization (label); a Satellite server host name installs its
+# katello-ca-consumer package first, empty = register to Red Hat. Empty activation key = no registration.
+openshift_automation_x2ansible_target_vm_activation_key: ""
+openshift_automation_x2ansible_target_vm_registration_organization: ""
+openshift_automation_x2ansible_target_vm_registration_server: ""
+# Name of the AAP machine credential and inventory for the target VM
+openshift_automation_x2ansible_target_vm_platform_name: x2ansible - target virtual machine
+
 # --- resource requests ---
 # default = the operator's requests for x2ansible (250m CPU) and upstream's 500m CPU per convertor Job; small = reserve
 # little CPU for small or single-node clusters (limits unchanged). The PostgreSQL pod keeps the operator's requests.

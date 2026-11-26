@@ -36,6 +36,10 @@
     - name: Main | Deploy x2ansible
       ansible.builtin.include_tasks: deploy.yml
 
+    - name: Main | Create the target virtual machine and its Ansible Automation Platform credential and inventory
+      ansible.builtin.include_tasks: target_vm.yml
+      when: openshift_automation_x2ansible_target_vm | bool
+
     - name: Main | Report
       ansible.builtin.debug:
         msg:
@@ -49,6 +53,10 @@
             {{ ('Publishing to Ansible Automation Platform organization ' ~ openshift_automation_x2ansible_platform_organization
                 ~ ' as user ' ~ openshift_automation_x2ansible_platform_username)
                if openshift_automation_x2ansible_publish_to_platform | bool else 'Publishing to Ansible Automation Platform: off' }}
+          - >-
+            {{ ('Target virtual machine ' ~ openshift_automation_x2ansible_target_vm_name ~ ': AAP inventory and machine credential "'
+                ~ openshift_automation_x2ansible_target_vm_platform_name ~ '"')
+               if openshift_automation_x2ansible_target_vm | bool else 'Target virtual machine: off' }}
   always:
     - name: Main | Remove the temporary certificate authority file
       ansible.builtin.file:
