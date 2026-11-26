@@ -108,6 +108,11 @@ certified/validated, private hub, Galaxy, in that order), so the repo holds no g
   - The managed "OpenShift or Kubernetes API Bearer Token" type has **no injectors** (container groups and the
     OpenShift Virtualization inventory source only), so it gives playbooks nothing, hence the custom type with host, token and CA.
   - The AAP credential injects `aap_hostname`/`aap_token`/`aap_validate_certs` as extra vars plus `AAP_*` environment variables.
+    Its `AAP_REQUEST_TIMEOUT`/`CONTROLLER_REQUEST_TIMEOUT` are empty when the credential has no timeout, and
+    `ansible.controller` modules then fail with "request_timeout ... unable to convert to float" (only in AAP, never
+    locally): set `request_timeout` explicitly (module_defaults). `ansible.controller` has no CA bundle option; it honours
+    `SSL_CERT_FILE` (task `environment`). A `no_log` task hides its error too: register it with `failed_when: false`
+    and fail with only its `msg`.
   - The EE must provide the collections' Python deps (`kubernetes` for kubernetes.core); check the
     EE before the first run.
   - Credential type injectors in `configs/` must be tagged `!unsafe` so Ansible doesn't render them on load.
